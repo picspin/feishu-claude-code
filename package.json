@@ -1,0 +1,22 @@
+{
+  "name": "feishu-claude-code",
+  "version": "0.1.0",
+  "description": "Bridge Feishu IM with local Claude Code sessions and attachment-aware prompts",
+  "license": "MIT",
+  "keywords": ["feishu", "lark", "claude-code", "agent-sdk", "bridge", "webhook"],
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "postinstall": "npm run build",
+    "start": "node dist/main.js start",
+    "setup": "node dist/main.js setup",
+    "daemon": "bash scripts/daemon.sh"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

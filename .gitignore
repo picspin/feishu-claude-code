@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+*.pid
+.env
+.env.*
+*.local
+config.json
+runtime/
+logs/
+.claude/
+.agents/
+.qwen/
+.kiro/
+.windsurf/
+.iflow/
