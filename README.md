@@ -94,7 +94,14 @@ Then expose the local server with your public HTTPS endpoint and configure the F
 
 ## Installation / 安装
 
-Clone or place this project under your local Claude skills directory, then install dependencies:
+直接运行一键安装脚本： 
+
+```
+chmotd +600 ./scripts/daemon.sh
+./scripts/daemon.sh
+
+```
+Or, clone or place this project under your local Claude skills directory, then install dependencies:
 
 将本项目放到本地 Claude skills 目录后，安装依赖：
 
