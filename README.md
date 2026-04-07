@@ -33,7 +33,7 @@ Bridge Feishu IM messages into a local Claude Code session and send Claude's rep
 
 ## Overview / 项目概览
 
-This project runs a local daemon that receives Feishu message events, keeps a-chat Claude session, downloads supported attachments to a local runtime directory, and lets Claude inspect those local files before answering.
+This project runs a local daemon that receives Feishu message events, keeps a per-chat Claude session, downloads supported attachments to a local runtime directory, and lets Claude inspect those local files before answering.
 
 本项目运行一个本地 daemon：接收飞书消息事件、为每个聊天维护独立 Claude 会话、把支持的附件下载到本地 runtime 目录，并让 Claude 在回复前按需检查这些本地文件。
 
