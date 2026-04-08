@@ -8,7 +8,11 @@
 
 Bridge Feishu IM messages into a local Claude Code session and send Claude's replies back to Feishu.
 
-通过飞书事件订阅 Webhook 把飞书 IM 消息接入本地 Claude Code 会话，并将 Claude 的回复发回飞书。
+通过飞书事件订阅 Webhook 把飞书 IM 消息接入本地 Claude Code 会话，并将 Claude 的回复发回飞书。支持文字、富文本、图片及文档（PDF/DOCX/MARKDOWN）
+
+![文字对话](https://github.com/picspin/feishu-claude-code/blob/main/screenshot/IMG_2789.jpg)
+![接收图片](https://github.com/picspin/feishu-claude-code/blob/main/screenshot/IMG_2790.jpg)
+![接收文档](https://github.com/picspin/feishu-claude-code/blob/main/screenshot/IMG_2791.jpg)
 
 ## Table of Contents / 目录
 
