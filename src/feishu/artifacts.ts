@@ -10,6 +10,8 @@ export interface SavedArtifact {
   displayName: string;
   mimeType?: string;
   size?: number;
+  transcriptText?: string;
+  transcriptSource?: string;
 }
 
 function sanitizeSegment(value: string): string {

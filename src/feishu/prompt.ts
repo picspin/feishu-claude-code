@@ -2,7 +2,7 @@ import { extname } from 'node:path';
 import type { SavedArtifact } from './artifacts.js';
 import type { FeishuIncomingMessage } from './webhook.js';
 
-type AttachmentCategory = 'image' | 'pdf' | 'textLike' | 'officeDoc' | 'genericBinary';
+type AttachmentCategory = 'image' | 'audio' | 'pdf' | 'textLike' | 'officeDoc' | 'genericBinary';
 
 function classifyArtifact(artifact: SavedArtifact): AttachmentCategory {
   const extension = extname(artifact.displayName).toLowerCase();
@@ -10,6 +10,9 @@ function classifyArtifact(artifact: SavedArtifact): AttachmentCategory {
 
   if (artifact.kind === 'image' || mimeType.startsWith('image/')) {
     return 'image';
+  }
+  if (artifact.kind === 'audio' || mimeType.startsWith('audio/')) {
+    return 'audio';
   }
   if (extension === '.pdf' || mimeType === 'application/pdf') {
     return 'pdf';
@@ -28,7 +31,12 @@ function describeArtifact(artifact: SavedArtifact): string {
   const metadata = [artifact.kind, artifact.mimeType, artifact.size ? `${artifact.size} bytes` : undefined]
     .filter((value): value is string => !!value)
     .join(', ');
-  return `- ${artifact.displayName}: ${artifact.localPath}${metadata ? ` (${metadata})` : ''}`;
+  const transcript = artifact.transcriptText
+    ? `\n  transcript (${artifact.transcriptSource || 'local-asr'}): ${artifact.transcriptText}`
+    : artifact.kind === 'audio'
+      ? `\n  transcript: unavailable${artifact.transcriptSource ? ` (${artifact.transcriptSource})` : ''}`
+      : '';
+  return `- ${artifact.displayName}: ${artifact.localPath}${metadata ? ` (${metadata})` : ''}${transcript}`;
 }
 
 function buildHandlingGuidance(artifacts: SavedArtifact[]): string[] {
@@ -40,6 +48,9 @@ function buildHandlingGuidance(artifacts: SavedArtifact[]): string[] {
 
   if (categories.has('image')) {
     guidance.push('For image attachments, inspect the visual content directly with available image-analysis capability before answering if the request depends on what is shown.');
+  }
+  if (categories.has('audio')) {
+    guidance.push('For audio attachments, use any included transcript as extracted text that may contain recognition errors; if the answer depends on exact wording, mention uncertainty and refer back to the saved local audio file.');
   }
   if (categories.has('pdf')) {
     guidance.push('For PDF attachments, read the PDF directly from the local path; if the document is large, focus on the most relevant pages or use an available PDF-reading skill/capability.');

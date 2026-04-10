@@ -132,6 +132,7 @@ export FEISHU_APP_ID=your_app_id
 export FEISHU_APP_SECRET=your_app_secret
 export FEISHU_VERIFICATION_TOKEN=your_verification_token
 export FEISHU_PUBLIC_BASE_URL=https://feishu-cc.example.com
+export FEISHU_AUDIO_TRANSCRIPTION_COMMAND="whisper-cpp -m /path/to/model.bin -f {file} -otxt -of /tmp/feishu-audio && cat /tmp/feishu-audio.txt"
 ```
 
 If Feishu encrypted event payloads are enabled / 如果飞书事件订阅开启了加密，还需要：
@@ -236,6 +237,7 @@ export FEISHU_PUBLIC_BASE_URL=https://feishu-cc.example.com
 Supported inbound handling today / 当前已支持的入站处理：
 - Text / 文本
 - Images / 图片
+- Audio (download + optional local transcription command) / 音频（下载 + 可选本地转写命令）
 - Files (including Markdown, DOCX, PDF when Claude can read them) / 文件（包括 Markdown、DOCX、PDF，在 Claude 可读取时）
 - Rich text links / 富文本链接
 
@@ -249,6 +251,7 @@ Attachments are downloaded to:
 
 The bridge intentionally stays lightweight:
 - it downloads and stages local files,
+- can run a local audio transcription command for audio attachments,
 - builds an attachment-aware prompt,
 - and lets Claude use its own local file reading, image understanding, or PDF-related capabilities.
 

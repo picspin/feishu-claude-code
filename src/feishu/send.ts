@@ -68,7 +68,7 @@ export async function sendTextMessage(receiveIdType: 'chat_id' | 'open_id' | 'us
   }
 }
 
-export async function downloadMessageResource(messageId: string, fileKey: string, type: 'file' | 'image'): Promise<DownloadedResource> {
+export async function downloadMessageResource(messageId: string, fileKey: string, type: 'file' | 'image' | 'audio' | 'media'): Promise<DownloadedResource> {
   const query = new URLSearchParams({ file_key: fileKey, type }).toString();
   const response = await feishuRequest(`/im/v1/messages/${encodeURIComponent(messageId)}/resources/${encodeURIComponent(fileKey)}?${query}`);
   if (!response.ok) {

@@ -9,12 +9,13 @@ description: 飞书 Claude Code 桥接。通过飞书事件订阅 Webhook 把飞
 
 ## 当前能力
 
-- 接收飞书事件订阅 Webhook 的文本消息、图片、文件与富文本链接
+- 接收飞书事件订阅 Webhook 的文本消息、图片、音频、文件与富文本链接
 - 支持飞书 challenge 校验与 schema 2.0 事件
 - 支持加密事件体解密
 - 为每个 `chat_id` 维护独立 Claude 会话
 - 将 Claude 文本回复发回飞书
-- 下载图片/文件到 `~/.feishu-claude-code/runtime/...`，供 Claude 读取
+- 下载图片/文件/音频到 `~/.feishu-claude-code/runtime/...`，供 Claude 读取
+- 可通过 `FEISHU_AUDIO_TRANSCRIPTION_COMMAND` 为音频启用本地转写，并将 transcript 一并交给 Claude
 - 在飞书内处理简单权限批准/拒绝（回复 `y` / `n`）
 - 支持基础命令：`/help`、`/clear`、`/status`、`/permission [mode]`、`/model [name]`、`/skills`
 - 提供 `npm run daemon -- <start|stop|restart|status|logs>` 后台运行入口
@@ -122,7 +123,7 @@ npm run start
 
 - 当前飞书出站回复仍以纯文本为主
 - 附件理解质量依赖 Claude 侧当前可用的本地文件、图片、PDF 处理能力/skills
-- 语音 / media 的专用处理尚未完全产品化
+- 音频当前为“下载 + 可选本地转写”模式；media 专用处理仍未完全产品化
 - 云文档当前主要以链接透传，尚未稳定导出为本地文件
 - 群聊 @ 策略、安装脚本、自启动仍可继续完善
 - 当前出站发送逻辑内置在 skill 中；后续可继续收敛到已有 `feishu-mcp`

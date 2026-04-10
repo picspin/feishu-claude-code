@@ -4,6 +4,7 @@ import { logger } from './logger.js';
 import { createSessionStore } from './session.js';
 import { createPermissionBroker } from './permission.js';
 import { routeCommand } from './commands/router.js';
+import { transcribeAudio } from './audio/transcribe.js';
 import { saveArtifact, type SavedArtifact } from './feishu/artifacts.js';
 import { buildPrompt } from './feishu/prompt.js';
 import { downloadMessageResource, sendTextMessage } from './feishu/send.js';
@@ -24,27 +25,34 @@ async function runSetup(): Promise<void> {
   config.encryptKey = process.env.FEISHU_ENCRYPT_KEY || config.encryptKey;
   config.verificationToken = process.env.FEISHU_VERIFICATION_TOKEN || config.verificationToken;
   config.publicBaseUrl = process.env.FEISHU_PUBLIC_BASE_URL || config.publicBaseUrl;
+  config.audioTranscriptionCommand = process.env.FEISHU_AUDIO_TRANSCRIPTION_COMMAND || config.audioTranscriptionCommand;
   saveConfig(config);
   console.log('已写入基础配置到 ~/.feishu-claude-code/config.json');
   console.log(`请在飞书事件订阅中配置回调地址: ${getWebhookUrl(config)}`);
 }
 
-async function downloadArtifacts(message: FeishuIncomingMessage): Promise<SavedArtifact[]> {
+async function downloadArtifacts(message: FeishuIncomingMessage, transcriptionCommand?: string): Promise<SavedArtifact[]> {
   const artifacts: SavedArtifact[] = [];
   for (const attachment of message.attachments) {
-    if (attachment.kind !== 'file' && attachment.kind !== 'image') {
+    if (!['file', 'image', 'audio', 'media'].includes(attachment.kind)) {
       continue;
     }
-    const resource = await downloadMessageResource(message.messageId, attachment.fileKey, attachment.kind === 'image' ? 'image' : 'file');
-    artifacts.push(saveArtifact({
+    const resource = await downloadMessageResource(message.messageId, attachment.fileKey, attachment.kind);
+    const artifact = saveArtifact({
       chatId: message.chatId,
       messageId: message.messageId,
       kind: attachment.kind,
       fileName: attachment.fileName || resource.fileName,
       content: resource.content,
-      fallbackExtension: attachment.kind === 'image' ? '.png' : undefined,
+      fallbackExtension: attachment.kind === 'image' ? '.png' : attachment.kind === 'audio' ? '.m4a' : undefined,
       mimeType: attachment.mimeType || resource.mimeType,
-    }));
+    });
+    if (attachment.kind === 'audio') {
+      const transcription = await transcribeAudio(artifact.localPath, transcriptionCommand);
+      artifact.transcriptText = transcription.text;
+      artifact.transcriptSource = transcription.source || transcription.error;
+    }
+    artifacts.push(artifact);
   }
   return artifacts;
 }
@@ -106,7 +114,7 @@ async function runStart(): Promise<void> {
       sessionStore.save(chatId, session);
 
       try {
-        const artifacts = await downloadArtifacts(message);
+        const artifacts = await downloadArtifacts(message, config.audioTranscriptionCommand);
         const prompt = command.handled && command.nextPrompt ? command.nextPrompt : buildPrompt(message, artifacts);
         const result = await claudeQuery({
           prompt,

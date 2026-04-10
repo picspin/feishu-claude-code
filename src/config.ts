@@ -10,6 +10,7 @@ export interface Config {
   model?: string;
   permissionMode?: 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions';
   systemPrompt?: string;
+  audioTranscriptionCommand?: string;
   appId?: string;
   appSecret?: string;
   encryptKey?: string;
