@@ -20,6 +20,7 @@ description: 飞书 Claude Code 桥接。通过飞书事件订阅 Webhook 把飞
 - 在飞书内处理简单权限批准/拒绝（回复 `y` / `n`）
 - 支持基础命令：`/help`、`/clear`、`/status`、`/permission [mode]`、`/model [name]`、`/skills`
 - 提供 `npm run daemon -- <start|stop|restart|status|logs>` 后台运行入口
+- 提供 `npm run setup-asr`，辅助安装 `ffmpeg` / `whisper-cpp` 并生成本地转写命令
 
 ## 安装
 

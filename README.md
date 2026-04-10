@@ -99,13 +99,6 @@ Then expose the local server with your public HTTPS endpoint and configure the F
 
 ## Installation / 安装
 
-直接运行一键安装脚本： 
-
-```
-chmotd +600 ./scripts/daemon.sh
-./scripts/daemon.sh
-
-```
 Or, clone or place this project under your local Claude skills directory, then install dependencies:
 
 将本项目放到本地 Claude skills 目录后，安装依赖：
@@ -155,6 +148,16 @@ npm run setup
 This writes configuration to `~/.feishu-claude-code/config.json`.
 
 这会把配置写入 `~/.feishu-claude-code/config.json`。
+
+Optional ASR setup / 可选 ASR 初始化：
+
+```bash
+npm run setup-asr
+```
+
+This installs `ffmpeg` and `whisper-cpp` via Homebrew when needed, downloads a default Whisper model to `~/.feishu-claude-code/asr/`, and prints or updates `FEISHU_AUDIO_TRANSCRIPTION_COMMAND`.
+
+如有需要，这会通过 Homebrew 安装 `ffmpeg` 与 `whisper-cpp`，下载默认 Whisper 模型到 `~/.feishu-claude-code/asr/`，并输出或写入 `FEISHU_AUDIO_TRANSCRIPTION_COMMAND`。
 
 Recommended practice / 建议做法：
 - keep secrets in your shell environment or a private local env loader
