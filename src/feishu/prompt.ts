@@ -11,7 +11,7 @@ function classifyArtifact(artifact: SavedArtifact): AttachmentCategory {
   if (artifact.kind === 'image' || mimeType.startsWith('image/')) {
     return 'image';
   }
-  if (artifact.kind === 'audio' || mimeType.startsWith('audio/')) {
+  if (artifact.kind === 'audio' || artifact.kind === 'media' || mimeType.startsWith('audio/') || mimeType.startsWith('video/')) {
     return 'audio';
   }
   if (extension === '.pdf' || mimeType === 'application/pdf') {

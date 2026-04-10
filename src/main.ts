@@ -47,8 +47,8 @@ async function downloadArtifacts(message: FeishuIncomingMessage, transcriptionCo
       fallbackExtension: attachment.kind === 'image' ? '.png' : attachment.kind === 'audio' ? '.m4a' : undefined,
       mimeType: attachment.mimeType || resource.mimeType,
     });
-    if (attachment.kind === 'audio') {
-      const transcription = await transcribeAudio(artifact.localPath, transcriptionCommand);
+    if (attachment.kind === 'audio' || attachment.kind === 'media') {
+      const transcription = await transcribeAudio(artifact.localPath, transcriptionCommand, attachment.kind);
       artifact.transcriptText = transcription.text;
       artifact.transcriptSource = transcription.source || transcription.error;
     }
