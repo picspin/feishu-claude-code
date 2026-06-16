@@ -20,6 +20,7 @@ Bridge Feishu IM messages into a local Claude Code session and send Claude's rep
 - [Overview / 项目概览](#overview--项目概览)
 - [Features / 功能特性](#features--功能特性)
 - [Architecture / 架构说明](#architecture--架构说明)
+- [macOS Dock Crab Pet / macOS Dock 寄居蟹桌宠](#macos-dock-crab-pet--macos-dock-寄居蟹桌宠)
 - [Requirements / 环境要求](#requirements--环境要求)
 - [Quick Start / 快速开始](#quick-start--快速开始)
 - [Installation / 安装](#installation--安装)
@@ -58,6 +59,7 @@ The bridge is intentionally lightweight. It does not embed a heavy OCR or docume
 - Support Feishu-side approval via `y` / `n` for Claude tool permissions / 支持在飞书里用 `y` / `n` 审批 Claude 工具权限
 - Provide slash-style commands such as `/help`, `/status`, `/model`, `/permission`, `/skills` / 提供 `/help`、`/status`、`/model`、`/permission`、`/skills` 等命令
 - Run in foreground or daemon mode / 支持前台运行或 daemon 后台运行
+- Launch an optional macOS Dock hermit crab pet that starts/stops the bridge and tunnel, then reflects bridge, tunnel, Claude, and Feishu activity states / 可启动 macOS Dock 寄居蟹桌宠，由桌宠启动/停止 bridge 与 tunnel，并映射 bridge、tunnel、Claude 与飞书消息状态
 
 ## Architecture / 架构说明
 
@@ -74,6 +76,53 @@ The bridge is intentionally lightweight. It does not embed a heavy OCR or docume
 4. 桥接服务构造附件感知 prompt，并恢复对应的 Claude 会话。
 5. Claude 按需读取本地文件或调用图片 / PDF 处理能力。
 6. 最终文本回复回发到飞书。
+
+## macOS Dock Crab Pet / macOS Dock 寄居蟹桌宠
+
+The `crab-pet/` app is a Tauri desktop companion for macOS. Opening the pet starts the Feishu bridge and Cloudflare tunnel; quitting the pet stops them. The pet stays in the Dock-safe area, renders with transparent PNG sprites, and uses the bridge `/status` and `/events` endpoints to show activity.
+
+`crab-pet/` 是一个 macOS Tauri 桌面伴侣。打开桌宠会启动 Feishu bridge 与 Cloudflare tunnel；退出桌宠会停止它们。桌宠固定在 Dock 上方安全区域，用透明 PNG 精灵渲染，并通过 bridge 的 `/status` 与 `/events` 端点展示活动状态。
+
+Design spec / 设计文档：
+
+- [`docs/superpowers/specs/2026-06-15-dock-crab-pet-design.md`](./docs/superpowers/specs/2026-06-15-dock-crab-pet-design.md)
+
+Prototype and production assets / 原型与当前生产资产：
+
+| Prototype sprite sheet / 原型状态图 | App icon / 应用图标 | Sleep state / 离线睡眠 |
+| :---: | :---: | :---: |
+| <img src="./crab-pet/src/assets/hermit-crab-sprite-sheet.png" width="320" alt="Hermit crab sprite sheet"> | <img src="./crab-pet/src-tauri/icons/icon.png" width="128" alt="Feishu Crab Pet icon"> | <img src="./crab-pet/src/assets/crab-sleep.png" width="128" alt="Sleeping crab pet"> |
+
+State mapping / 状态映射：
+
+- `sleep`: bridge or tunnel is offline; uses a dedicated tucked-shell `Zzz` sprite / bridge 或 tunnel 离线；使用专门的缩壳闭眼 `Zzz` 图片
+- `awake`: bridge and tunnel are online; default idle awake state / bridge 与 tunnel 在线；默认醒着状态
+- `wave-claw`: one-shot wave every minute while awake, lasting about 5 seconds / 醒着时每分钟挥钳一次，约 5 秒
+- `idle-shrink`: after about 5 minutes awake without higher-priority activity / 醒着空闲约 5 分钟后缩壳休息
+- `crawl`: Claude is thinking/streaming, or a double-click interaction; the window crawls horizontally at about 16 px/s and reverses at screen edges / Claude 思考或输出中，或双击互动；窗口以约 16 px/s 横向爬行，触边反向
+- `wink`: recent non-text Feishu input such as image, audio, media, or file / 最近收到图片、语音、media 或文件等非文本消息
+- `bubbling`: reply completed, single click, or hover/hold intent for recent activity / 回复完成、单击或悬停意图触发吐泡
+- `shrink`: more than three clicks in a burst; holds for about 10 seconds / 快速点击超过三次触发缩壳，保持约 10 秒
+
+Build the macOS app / 构建 macOS App：
+
+```bash
+cd ~/.claude/skills/feishu-claude-code/crab-pet
+npm install
+npm run tauri -- build
+```
+
+The local `.app` bundle is generated at:
+
+本地 `.app` 会生成在：
+
+```text
+crab-pet/src-tauri/target/release/bundle/macos/Feishu Crab Pet.app
+```
+
+Packaged macOS app binaries are intentionally not committed to this repository. Publish them separately through GitHub Releases.
+
+打包后的 macOS App 二进制不会提交到仓库；请通过 GitHub Releases 单独发布。
 
 ## Requirements / 环境要求
 
@@ -125,7 +174,7 @@ export FEISHU_APP_ID=your_app_id
 export FEISHU_APP_SECRET=your_app_secret
 export FEISHU_VERIFICATION_TOKEN=your_verification_token
 export FEISHU_PUBLIC_BASE_URL=https://feishu-cc.example.com
-export FEISHU_AUDIO_TRANSCRIPTION_COMMAND="whisper-cpp -m /path/to/model.bin -f {file} -otxt -of /tmp/feishu-audio && cat /tmp/feishu-audio.txt"
+export FEISHU_AUDIO_TRANSCRIPTION_COMMAND="whisper-cli -m /path/to/model.bin -f {file} -otxt -of /tmp/feishu-audio && cat /tmp/feishu-audio.txt"
 ```
 
 For media files, the bridge now tries the command directly first, then falls back to `ffmpeg` audio extraction when needed.
@@ -155,9 +204,9 @@ Optional ASR setup / 可选 ASR 初始化：
 npm run setup-asr
 ```
 
-This installs `ffmpeg` and `whisper-cpp` via Homebrew when needed, downloads a default Whisper model to `~/.feishu-claude-code/asr/`, and prints or updates `FEISHU_AUDIO_TRANSCRIPTION_COMMAND`.
+This installs `ffmpeg` and `whisper-cli` via Homebrew when needed, downloads a default Whisper model to `~/.feishu-claude-code/asr/`, and prints or updates `FEISHU_AUDIO_TRANSCRIPTION_COMMAND`.
 
-如有需要，这会通过 Homebrew 安装 `ffmpeg` 与 `whisper-cpp`，下载默认 Whisper 模型到 `~/.feishu-claude-code/asr/`，并输出或写入 `FEISHU_AUDIO_TRANSCRIPTION_COMMAND`。
+如有需要，这会通过 Homebrew 安装 `ffmpeg` 与 `whisper-cli`，下载默认 Whisper 模型到 `~/.feishu-claude-code/asr/`，并输出或写入 `FEISHU_AUDIO_TRANSCRIPTION_COMMAND`。
 
 Recommended practice / 建议做法：
 - keep secrets in your shell environment or a private local env loader
@@ -238,6 +287,24 @@ After your tunnel is running, set:
 ```bash
 export FEISHU_PUBLIC_BASE_URL=https://feishu-cc.example.com
 ```
+
+If you use a Cloudflare token tunnel instead of `~/.cloudflared/config.yml`, store the token outside the repo and use the helper script:
+
+如果你使用 Cloudflare token tunnel，而不是 `~/.cloudflared/config.yml`，把 token 存在仓库外，然后用辅助脚本启动：
+
+```bash
+mkdir -p ~/.feishu-claude-code
+printf '%s' '<cloudflared tunnel token>' > ~/.feishu-claude-code/cloudflared-token
+chmod 600 ~/.feishu-claude-code/cloudflared-token
+
+npm run tunnel -- start
+npm run tunnel -- status
+npm run tunnel -- logs
+```
+
+`npm run daemon -- start` starts this tunnel automatically before starting the bridge, and `npm run daemon -- stop` stops it together with the bridge.
+
+`npm run daemon -- start` 会在启动桥接前自动启动这个 tunnel；`npm run daemon -- stop` 会把 bridge 和 tunnel 一起停掉。
 
 ## Attachment Handling / 附件处理策略
 
@@ -330,9 +397,21 @@ npm run build
 
 Key source directories / 主要源码目录：
 - `src/feishu` - webhook parsing, downloads, prompt building / webhook 解析、下载、prompt 组装
+- `src/bridge` - bridge/tunnel readiness and desktop pet status contract / bridge、tunnel 可用性与桌宠状态契约
 - `src/claude` - Claude Agent SDK integration / Claude Agent SDK 集成
 - `src/commands` - slash-style command handling / 命令处理
+- `crab-pet` - Tauri macOS Dock hermit crab pet / Tauri macOS Dock 寄居蟹桌宠
 - `scripts/daemon.sh` - daemon management / daemon 管理
+
+Useful crab-pet checks / 桌宠常用检查：
+
+```bash
+cd ~/.claude/skills/feishu-claude-code/crab-pet
+npm test
+npm run build
+cd src-tauri
+cargo test
+```
 
 ## Author / 作者
 

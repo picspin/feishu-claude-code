@@ -69,10 +69,12 @@ export async function sendTextMessage(receiveIdType: 'chat_id' | 'open_id' | 'us
 }
 
 export async function downloadMessageResource(messageId: string, fileKey: string, type: 'file' | 'image' | 'audio' | 'media'): Promise<DownloadedResource> {
-  const query = new URLSearchParams({ file_key: fileKey, type }).toString();
+  const resourceType = type === 'audio' ? 'file' : type;
+  const query = new URLSearchParams({ file_key: fileKey, type: resourceType }).toString();
   const response = await feishuRequest(`/im/v1/messages/${encodeURIComponent(messageId)}/resources/${encodeURIComponent(fileKey)}?${query}`);
   if (!response.ok) {
-    throw new Error(`Feishu download failed: ${response.statusText}`);
+    const bodyPreview = await response.text().catch(() => '');
+    throw new Error(`Feishu download failed (${response.status} ${response.statusText}): ${bodyPreview.slice(0, 500)}`);
   }
   const contentDisposition = response.headers.get('content-disposition') || '';
   const fileNameMatch = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(contentDisposition);

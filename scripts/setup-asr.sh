@@ -33,7 +33,7 @@ else
   echo "Whisper model already exists at $MODEL_PATH"
 fi
 
-COMMAND="whisper-cpp -m ${MODEL_PATH} -f {file} -otxt -of /tmp/feishu-audio && cat /tmp/feishu-audio.txt"
+COMMAND="whisper-cli -m ${MODEL_PATH} -f {file} -otxt -of /tmp/feishu-audio && cat /tmp/feishu-audio.txt"
 
 echo
  echo "Add or update this environment variable:"

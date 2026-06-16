@@ -4,12 +4,16 @@ import { logger } from './logger.js';
 import { createSessionStore } from './session.js';
 import { createPermissionBroker } from './permission.js';
 import { routeCommand } from './commands/router.js';
+import { createBridgeStatusTracker } from './bridge/status.js';
+import { detectTunnelState } from './bridge/tunnel.js';
 import { transcribeAudio } from './audio/transcribe.js';
 import { saveArtifact, type SavedArtifact } from './feishu/artifacts.js';
 import { buildPrompt } from './feishu/prompt.js';
 import { downloadMessageResource, sendTextMessage } from './feishu/send.js';
 import { createWebhookServer, type FeishuIncomingMessage } from './feishu/webhook.js';
 import { claudeQuery } from './claude/provider.js';
+
+const BRIDGE_VERSION = '0.1.0';
 
 function getWebhookUrl(config: ReturnType<typeof loadConfig>): string {
   if (config.publicBaseUrl) {
@@ -37,6 +41,13 @@ async function downloadArtifacts(message: FeishuIncomingMessage, transcriptionCo
     if (!['file', 'image', 'audio', 'media'].includes(attachment.kind)) {
       continue;
     }
+    logger.info('Downloading Feishu attachment', {
+      chatId: message.chatId,
+      messageId: message.messageId,
+      kind: attachment.kind,
+      fileKey: attachment.fileKey,
+      fileName: attachment.fileName,
+    });
     const resource = await downloadMessageResource(message.messageId, attachment.fileKey, attachment.kind);
     const artifact = saveArtifact({
       chatId: message.chatId,
@@ -47,10 +58,27 @@ async function downloadArtifacts(message: FeishuIncomingMessage, transcriptionCo
       fallbackExtension: attachment.kind === 'image' ? '.png' : attachment.kind === 'audio' ? '.m4a' : undefined,
       mimeType: attachment.mimeType || resource.mimeType,
     });
+    logger.info('Saved Feishu attachment locally', {
+      chatId: message.chatId,
+      messageId: message.messageId,
+      kind: attachment.kind,
+      localPath: artifact.localPath,
+      size: artifact.size,
+      mimeType: artifact.mimeType,
+    });
     if (attachment.kind === 'audio' || attachment.kind === 'media') {
       const transcription = await transcribeAudio(artifact.localPath, transcriptionCommand, attachment.kind);
       artifact.transcriptText = transcription.text;
       artifact.transcriptSource = transcription.source || transcription.error;
+      logger.info('Audio transcription completed', {
+        chatId: message.chatId,
+        messageId: message.messageId,
+        kind: attachment.kind,
+        localPath: artifact.localPath,
+        transcriptSource: artifact.transcriptSource,
+        hasTranscriptText: !!artifact.transcriptText,
+        transcriptPreview: artifact.transcriptText?.slice(0, 200),
+      });
     }
     artifacts.push(artifact);
   }
@@ -61,12 +89,19 @@ async function runStart(): Promise<void> {
   const config = loadConfig();
   const sessionStore = createSessionStore();
   const permissionBroker = createPermissionBroker();
+  const statusTracker = createBridgeStatusTracker({
+    version: BRIDGE_VERSION,
+    getBridgeState: () => (isBridgeReady(config) ? 'online' : 'offline'),
+    getBridgeError: () => bridgeReadinessError(config),
+    getTunnelState: detectTunnelState,
+  });
 
   const server = createWebhookServer({
     port: config.port,
     path: config.webhookPath,
     verificationToken: config.verificationToken,
     encryptKey: config.encryptKey,
+    statusTracker,
     onMessage: async (message) => {
       const { chatId } = message;
       const session = sessionStore.load(chatId);
@@ -88,6 +123,13 @@ async function runStart(): Promise<void> {
       }
 
       const command = message.messageType === 'text' ? routeCommand(messageText, session) : { handled: false as const };
+      const artifacts = await downloadArtifacts(message, config.audioTranscriptionCommand);
+      const audioTranscript = artifacts
+        .filter((artifact) => (artifact.kind === 'audio' || artifact.kind === 'media') && artifact.transcriptText)
+        .map((artifact) => artifact.transcriptText?.trim())
+        .filter((value): value is string => !!value)
+        .join('\n');
+      const effectiveMessageText = messageText || audioTranscript || `[${message.messageType}]`;
       if (command.handled) {
         if (command.clearSession) {
           session.sdkSessionId = undefined;
@@ -110,12 +152,12 @@ async function runStart(): Promise<void> {
       }
 
       session.state = 'processing';
-      sessionStore.addChatMessage(session, 'user', messageText || `[${message.messageType}]`);
+      sessionStore.addChatMessage(session, 'user', effectiveMessageText);
       sessionStore.save(chatId, session);
+      statusTracker.recordClaudeStarted();
 
       try {
-        const artifacts = await downloadArtifacts(message, config.audioTranscriptionCommand);
-        const prompt = command.handled && command.nextPrompt ? command.nextPrompt : buildPrompt(message, artifacts);
+        const prompt = command.handled && command.nextPrompt ? command.nextPrompt : buildPrompt({ ...message, text: effectiveMessageText }, artifacts);
         const result = await claudeQuery({
           prompt,
           cwd: session.workingDirectory || config.workingDirectory,
@@ -139,10 +181,18 @@ async function runStart(): Promise<void> {
         sessionStore.addChatMessage(session, 'assistant', result.text || '(空回复)');
         sessionStore.save(chatId, session);
         await sendTextMessage('chat_id', chatId, result.text || '(空回复)');
+        statusTracker.recordClaudeCompleted();
       } catch (error) {
         session.state = 'idle';
         sessionStore.save(chatId, session);
         const errorMessage = error instanceof Error ? error.message : String(error);
+        statusTracker.recordError(error);
+        logger.error('Message handling failed', {
+          chatId,
+          messageId: message.messageId,
+          messageType: message.messageType,
+          error: errorMessage,
+        });
         await sendTextMessage('chat_id', chatId, `处理失败: ${errorMessage}`);
       }
     },
@@ -152,6 +202,17 @@ async function runStart(): Promise<void> {
   logger.info('Feishu Claude Code bridge started', { port: config.port, path: config.webhookPath, publicWebhookUrl: getWebhookUrl(config) });
   console.log(`Listening on http://127.0.0.1:${config.port}${config.webhookPath}`);
   console.log(`Public webhook URL: ${getWebhookUrl(config)}`);
+}
+
+function isBridgeReady(config: ReturnType<typeof loadConfig>): boolean {
+  return bridgeReadinessError(config) === null;
+}
+
+function bridgeReadinessError(config: ReturnType<typeof loadConfig>): string | null {
+  if (!config.appId || !config.appSecret) {
+    return 'Feishu app credentials are missing';
+  }
+  return null;
 }
 
 async function main(): Promise<void> {

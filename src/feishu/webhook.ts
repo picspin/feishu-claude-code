@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createHash, createDecipheriv } from 'node:crypto';
 import { logger } from '../logger.js';
+import type { BridgeStatusTracker } from '../bridge/status.js';
 
 export type FeishuMessageType = 'text' | 'file' | 'image' | 'audio' | 'media' | 'post';
 
@@ -35,6 +36,17 @@ interface EventPayload {
     };
     sender?: { sender_id?: { open_id?: string } };
   };
+}
+
+function isPetStatusPath(url: string | undefined): boolean {
+  const path = normalizePath(url);
+  return path === '/health' || path === '/status' || path === '/events';
+}
+
+function setPetCorsHeaders(res: ServerResponse): void {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
 function normalizePath(pathname: string | undefined): string {
@@ -215,11 +227,49 @@ export function createWebhookServer(options: {
   path: string;
   verificationToken?: string;
   encryptKey?: string;
+  statusTracker?: BridgeStatusTracker;
   onMessage: (message: FeishuIncomingMessage) => Promise<void>;
 }) {
   const seenEventIds = new Set<string>();
 
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    if (isPetStatusPath(req.url)) {
+      setPetCorsHeaders(res);
+      if (req.method === 'OPTIONS') {
+        res.statusCode = 204;
+        res.end();
+        return;
+      }
+    }
+
+    if (req.method === 'GET' && normalizePath(req.url) === '/health') {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ status: 'ok', version: options.statusTracker?.getVersion() ?? 'unknown' }));
+      return;
+    }
+
+    if (req.method === 'GET' && normalizePath(req.url) === '/status') {
+      if (!options.statusTracker) {
+        res.statusCode = 503;
+        res.end('status tracker unavailable');
+        return;
+      }
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(options.statusTracker.getStatus()));
+      return;
+    }
+
+    if (req.method === 'GET' && normalizePath(req.url) === '/events') {
+      if (!options.statusTracker) {
+        res.statusCode = 503;
+        res.end('status tracker unavailable');
+        return;
+      }
+      res.setHeader('Content-Type', 'application/x-ndjson');
+      res.end(options.statusTracker.getEventsJsonl());
+      return;
+    }
+
     if (req.method !== 'POST' || normalizePath(req.url) !== options.path) {
       res.statusCode = 404;
       res.end('not found');
@@ -315,6 +365,7 @@ export function createWebhookServer(options: {
         attachmentCount: parsedMessage.attachments.length,
         linkCount: parsedMessage.links.length,
       });
+      options.statusTracker?.recordMessageReceived(parsedMessage.messageType, parsedMessage.text ?? parsedMessage.rawSummary);
       await options.onMessage(parsedMessage);
       logger.info('Message handler completed', { chatId: parsedMessage.chatId, messageType: parsedMessage.messageType });
 
@@ -330,8 +381,11 @@ export function createWebhookServer(options: {
   return {
     listen() {
       return new Promise<void>((resolve) => {
-        server.listen(options.port, () => resolve());
+        server.listen(options.port, '127.0.0.1', () => resolve());
       });
+    },
+    address() {
+      return server.address();
     },
     close() {
       return new Promise<void>((resolve, reject) => {

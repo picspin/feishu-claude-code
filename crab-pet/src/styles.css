@@ -1,0 +1,199 @@
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  background: transparent;
+  --pet-window-width: 180px;
+  --pet-window-height: 150px;
+  --crab-art: url("/src/assets/crab-neutral.png");
+}
+
+html,
+body,
+#app {
+  width: var(--pet-window-width);
+  height: var(--pet-window-height);
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+#app {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  box-sizing: border-box;
+}
+
+.crab-shell {
+  position: relative;
+  width: 152px;
+  height: 116px;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  transform-origin: 50% 84%;
+  appearance: none;
+  padding: 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.crab-shell:active {
+  cursor: grabbing;
+}
+
+.crab-shell:focus-visible {
+  outline: 3px solid rgb(0 140 255 / 0.82);
+  outline-offset: 3px;
+}
+
+.crab-sprite {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-image: var(--crab-art);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  transform-origin: 50% 84%;
+  will-change: transform;
+}
+
+.bubble-panel {
+  position: absolute;
+  right: 8px;
+  bottom: 118px;
+  max-width: 164px;
+  padding: 6px 8px;
+  border: 1px solid rgb(255 255 255 / 0.44);
+  border-radius: 8px;
+  background: rgb(24 30 35 / 0.72);
+  color: white;
+  font-size: 11px;
+  line-height: 1.3;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  pointer-events: none;
+  backdrop-filter: blur(14px);
+}
+
+.bubble-panel[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.crab-shell[data-state="sleep"] {
+  --crab-art: url("/src/assets/crab-sleep.png");
+  opacity: 0.86;
+  filter:
+    hue-rotate(318deg)
+    saturate(1.45)
+    brightness(0.9);
+  animation: sleep-breathe 2.8s ease-in-out infinite;
+}
+
+.crab-shell[data-state="awake"] {
+  --crab-art: url("/src/assets/crab-neutral.png");
+}
+
+.crab-shell[data-state="wave-claw"] {
+  --crab-art: url("/src/assets/crab-wave.png");
+}
+
+.crab-shell[data-state="wave-claw"] .crab-sprite {
+  animation: wave-claw-once 5s ease-in-out 1;
+}
+
+.crab-shell[data-state="crawl"] {
+  --crab-art: url("/src/assets/crab-crawl.png");
+}
+
+.crab-shell[data-state="crawl"] .crab-sprite {
+  animation: crawl-step 600ms ease-in-out infinite;
+}
+
+.crab-shell[data-state="wink"] {
+  --crab-art: url("/src/assets/crab-wink.png");
+}
+
+.crab-shell[data-state="wink"] .crab-sprite {
+  animation: wink-pop 900ms ease-in-out 2;
+}
+
+.crab-shell[data-state="bubbling"] {
+  --crab-art: url("/src/assets/crab-bubble.png");
+}
+
+.crab-shell[data-state="bubbling"] .crab-sprite {
+  animation: bubble-bob 1.4s ease-in-out infinite;
+}
+
+.crab-shell[data-state="dodge"] {
+  --crab-art: url("/src/assets/crab-crawl.png");
+}
+
+.crab-shell[data-state="dodge"] .crab-sprite {
+  animation: crawl-step 600ms ease-in-out infinite;
+}
+
+.crab-shell[data-state="shrink"] {
+  --crab-art: url("/src/assets/crab-shrink.png");
+}
+
+.crab-shell[data-state="idle-shrink"] {
+  --crab-art: url("/src/assets/crab-shrink.png");
+  opacity: 0.92;
+  animation: sleep-breathe 3.2s ease-in-out infinite;
+}
+
+.crab-shell[data-state="shrink"] .crab-sprite {
+  animation: shell-shrink 800ms ease-in-out 1;
+}
+
+@keyframes sleep-breathe {
+  50% {
+    transform: scale(0.97) translateY(3px);
+  }
+}
+
+@keyframes wave-claw-once {
+  0%,
+  3%,
+  6% {
+    transform: rotate(0) translateY(0);
+  }
+  1.5%,
+  4.5% {
+    transform: rotate(-4deg) translateY(-6px);
+  }
+  7%,
+  100% {
+    transform: rotate(0) translateY(0);
+  }
+}
+
+@keyframes crawl-step {
+  50% {
+    transform: translateY(-3px) rotate(-2deg);
+  }
+}
+
+@keyframes wink-pop {
+  50% {
+    transform: scale(1.03) translateY(-2px);
+  }
+}
+
+@keyframes bubble-bob {
+  50% {
+    transform: translateY(-4px) scale(1.02);
+  }
+}
+
+@keyframes shell-shrink {
+  50% {
+    transform: scale(0.78) translateY(12px) rotate(4deg);
+  }
+}
