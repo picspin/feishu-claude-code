@@ -10,7 +10,6 @@ fn main() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = crate::window::position_near_dock(window);
             }
-            let _ = crate::daemon::ensure_daemon();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

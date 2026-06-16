@@ -50,12 +50,47 @@ cloudflared_stop() {
   fi
 }
 
+resolve_node_bin() {
+  if [ -x "${NODE_BIN:-}" ]; then
+    echo "$NODE_BIN"
+    return
+  fi
+  if command -v node >/dev/null 2>&1; then
+    command -v node
+    return
+  fi
+  for candidate in \
+    "${HOME}/.nvm/versions/node/v22.19.0/bin/node" \
+    "/opt/homebrew/bin/node" \
+    "/usr/local/bin/node" \
+    "/usr/bin/node"
+  do
+    if [ -x "$candidate" ]; then
+      echo "$candidate"
+      return
+    fi
+  done
+  echo ""
+}
+
 bridge_stop_orphans() {
   local bridge_pid
-  bridge_pid="$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)"
+  bridge_pid="$(/usr/sbin/lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)"
   if [ -n "$bridge_pid" ]; then
     kill $bridge_pid 2>/dev/null || true
   fi
+}
+
+bridge_wait_until_stopped() {
+  local attempts="${1:-10}"
+  local i
+  for ((i = 0; i < attempts; i++)); do
+    if ! /usr/sbin/lsof -tiTCP:8787 -sTCP:LISTEN >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
 }
 
 macos_plist_label() {
@@ -116,12 +151,17 @@ macos_bootstrap() {
 }
 
 macos_start() {
-  local node_bin="$(command -v node || echo '/usr/local/bin/node')"
+  local node_bin="$(resolve_node_bin)"
   local launchd_dir="$(macos_launchd_dir)"
   local bridge_label="$(macos_bridge_label)"
   local tunnel_label="$(macos_tunnel_label)"
   local bridge_plist="$(macos_bridge_plist_path)"
   local tunnel_plist="$(macos_tunnel_plist_path)"
+
+  if [ -z "$node_bin" ]; then
+    echo "node not found. Install Node.js or set NODE_BIN to an executable node path."
+    exit 1
+  fi
 
   mkdir -p "$DATA_DIR/logs" "$launchd_dir"
   load_env_file
@@ -130,6 +170,7 @@ macos_start() {
   launchctl bootout "gui/$(id -u)/${tunnel_label}" 2>/dev/null || true
   sleep 1
   bridge_stop_orphans
+  bridge_wait_until_stopped 10 || true
   cloudflared_stop
 
   cat > "$tunnel_plist" <<PLIST
@@ -154,7 +195,7 @@ macos_start() {
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>${HOME}/.local/bin:${node_bin%/*}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <string>${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
 </dict>
 </plist>
@@ -184,7 +225,7 @@ PLIST
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>${HOME}/.local/bin:${node_bin%/*}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <string>${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>FEISHU_APP_ID</key>
     <string>${FEISHU_APP_ID:-}</string>
     <key>FEISHU_APP_SECRET</key>
@@ -248,7 +289,12 @@ linux_pid_file() {
 
 linux_start() {
   local pid_file="$(linux_pid_file)"
-  local node_bin="$(command -v node || echo '/usr/bin/node')"
+  local node_bin="$(resolve_node_bin)"
+
+  if [ -z "$node_bin" ]; then
+    echo "node not found. Install Node.js or set NODE_BIN to an executable node path."
+    exit 1
+  fi
 
   if [ -f "$pid_file" ]; then
     local old_pid=$(cat "$pid_file" 2>/dev/null)
