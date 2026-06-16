@@ -6,6 +6,9 @@ PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SERVICE_NAME="feishu-claude-code"
 OS_TYPE="$(uname -s)"
 ENV_FILE="${HOME}/.config/cc_all_in/environment"
+TUNNEL_SCRIPT="${PROJECT_DIR}/scripts/cloudflared-tunnel.sh"
+RUN_WITH_TUNNEL_SCRIPT="${PROJECT_DIR}/scripts/run-with-tunnel.sh"
+CLOUDFLARED_RUN_SCRIPT="${PROJECT_DIR}/scripts/cloudflared-run.sh"
 
 load_env_file() {
   if [ -f "$ENV_FILE" ]; then
@@ -17,10 +20,26 @@ load_env_file() {
 }
 
 cloudflared_status() {
-  if pgrep -f "cloudflared.*${PROJECT_DIR}" >/dev/null 2>&1 || pgrep -f "cloudflared" >/dev/null 2>&1; then
-    echo "cloudflared: running"
+  if [ -x "$TUNNEL_SCRIPT" ]; then
+    "$TUNNEL_SCRIPT" status
+  elif pgrep -f "cloudflared" >/dev/null 2>&1; then
+    echo "cloudflared tunnel: running"
   else
-    echo "cloudflared: not running"
+    echo "cloudflared tunnel: not running"
+  fi
+}
+
+cloudflared_stop() {
+  if [ -x "$TUNNEL_SCRIPT" ]; then
+    "$TUNNEL_SCRIPT" stop
+  fi
+}
+
+bridge_stop_orphans() {
+  local bridge_pid
+  bridge_pid="$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)"
+  if [ -n "$bridge_pid" ]; then
+    kill $bridge_pid 2>/dev/null || true
   fi
 }
 
@@ -32,31 +51,85 @@ macos_plist_path() {
   echo "${HOME}/Library/LaunchAgents/$(macos_plist_label).plist"
 }
 
+macos_pid_file() {
+  echo "${DATA_DIR}/${SERVICE_NAME}.pid"
+}
+
+macos_launchd_dir() {
+  echo "${DATA_DIR}/launchd"
+}
+
+macos_bridge_label() {
+  echo "com.feishu-claude-code.bridge"
+}
+
+macos_tunnel_label() {
+  echo "com.feishu-claude-code.cloudflared"
+}
+
+macos_bridge_plist_path() {
+  echo "$(macos_launchd_dir)/$(macos_bridge_label).plist"
+}
+
+macos_tunnel_plist_path() {
+  echo "$(macos_launchd_dir)/$(macos_tunnel_label).plist"
+}
+
 macos_is_loaded() {
-  launchctl print "gui/$(id -u)/$(macos_plist_label)" &>/dev/null
+  launchctl print "gui/$(id -u)/$(macos_bridge_label)" &>/dev/null
 }
 
 macos_start() {
-  local plist_label="$(macos_plist_label)"
-  local plist_path="$(macos_plist_path)"
   local node_bin="$(command -v node || echo '/usr/local/bin/node')"
+  local launchd_dir="$(macos_launchd_dir)"
+  local bridge_label="$(macos_bridge_label)"
+  local tunnel_label="$(macos_tunnel_label)"
+  local bridge_plist="$(macos_bridge_plist_path)"
+  local tunnel_plist="$(macos_tunnel_plist_path)"
 
-  if macos_is_loaded; then
-    echo "Already running"
-    cloudflared_status
-    exit 0
-  fi
-
-  mkdir -p "$DATA_DIR/logs"
+  mkdir -p "$DATA_DIR/logs" "$launchd_dir"
   load_env_file
+  bridge_stop_orphans
+  cloudflared_stop
 
-  cat > "$plist_path" <<PLIST
+  launchctl bootout "gui/$(id -u)/${bridge_label}" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/${tunnel_label}" 2>/dev/null || true
+
+  cat > "$tunnel_plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>${plist_label}</string>
+  <string>${tunnel_label}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${CLOUDFLARED_RUN_SCRIPT}</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>${PROJECT_DIR}</string>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>${DATA_DIR}/logs/cloudflared.log</string>
+  <key>StandardErrorPath</key>
+  <string>${DATA_DIR}/logs/cloudflared.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>${HOME}/.local/bin:${node_bin%/*}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>
+PLIST
+
+  cat > "$bridge_plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${bridge_label}</string>
   <key>ProgramArguments</key>
   <array>
     <string>${node_bin}</string>
@@ -65,8 +138,6 @@ macos_start() {
   </array>
   <key>WorkingDirectory</key>
   <string>${PROJECT_DIR}</string>
-  <key>RunAtLoad</key>
-  <true/>
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
@@ -87,32 +158,33 @@ macos_start() {
     <string>${FEISHU_ENCRYPT_KEY:-}</string>
     <key>FEISHU_PUBLIC_BASE_URL</key>
     <string>${FEISHU_PUBLIC_BASE_URL:-}</string>
+    <key>FEISHU_AUDIO_TRANSCRIPTION_COMMAND</key>
+    <string>${FEISHU_AUDIO_TRANSCRIPTION_COMMAND:-}</string>
   </dict>
 </dict>
 </plist>
 PLIST
 
-  launchctl load "$plist_path"
+  launchctl bootstrap "gui/$(id -u)" "$tunnel_plist"
+  launchctl bootstrap "gui/$(id -u)" "$bridge_plist"
   echo "Started feishu-claude-code daemon"
   cloudflared_status
 }
 
 macos_stop() {
-  local plist_label="$(macos_plist_label)"
   local plist_path="$(macos_plist_path)"
-  launchctl bootout "gui/$(id -u)/${plist_label}" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/$(macos_bridge_label)" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/$(macos_tunnel_label)" 2>/dev/null || true
   rm -f "$plist_path"
+  rm -f "$(macos_bridge_plist_path)" "$(macos_tunnel_plist_path)"
+  cloudflared_stop
+  bridge_stop_orphans
   echo "Stopped feishu-claude-code daemon"
 }
 
 macos_status() {
   if macos_is_loaded; then
-    local pid=$(pgrep -f "dist/main.js start" 2>/dev/null | head -1)
-    if [ -n "$pid" ]; then
-      echo "Running (PID: $pid)"
-    else
-      echo "Loaded but not running"
-    fi
+    echo "Running"
   else
     echo "Not running"
   fi
@@ -126,6 +198,10 @@ macos_logs() {
       tail -30 "$f"
     fi
   done
+  if [ -f "${DATA_DIR}/logs/cloudflared.log" ]; then
+    echo "=== cloudflared.log ==="
+    tail -30 "${DATA_DIR}/logs/cloudflared.log"
+  fi
 }
 
 linux_pid_file() {
@@ -154,7 +230,9 @@ linux_start() {
     FEISHU_VERIFICATION_TOKEN="${FEISHU_VERIFICATION_TOKEN:-}" \
     FEISHU_ENCRYPT_KEY="${FEISHU_ENCRYPT_KEY:-}" \
     FEISHU_PUBLIC_BASE_URL="${FEISHU_PUBLIC_BASE_URL:-}" \
-    "$node_bin" "${PROJECT_DIR}/dist/main.js" start >> "$DATA_DIR/logs/stdout.log" 2>> "$DATA_DIR/logs/stderr.log" &
+    FEISHU_AUDIO_TRANSCRIPTION_COMMAND="${FEISHU_AUDIO_TRANSCRIPTION_COMMAND:-}" \
+    NODE_BIN="$node_bin" \
+    "$RUN_WITH_TUNNEL_SCRIPT" >> "$DATA_DIR/logs/stdout.log" 2>> "$DATA_DIR/logs/stderr.log" &
   echo $! > "$pid_file"
   echo "Started feishu-claude-code daemon (PID: $!)"
   cloudflared_status
@@ -167,6 +245,8 @@ linux_stop() {
     kill "$pid" 2>/dev/null || true
     rm -f "$pid_file"
   fi
+  cloudflared_stop
+  bridge_stop_orphans
   echo "Stopped feishu-claude-code daemon"
 }
 
@@ -192,6 +272,10 @@ linux_logs() {
       tail -30 "$f"
     fi
   done
+  if [ -f "${DATA_DIR}/logs/cloudflared.log" ]; then
+    echo "=== cloudflared.log ==="
+    tail -30 "${DATA_DIR}/logs/cloudflared.log"
+  fi
 }
 
 ACTION="${1:-status}"

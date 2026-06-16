@@ -42,10 +42,12 @@ async function runCommand(command: string, source: string): Promise<AudioTranscr
   }
 }
 
-async function extractAudioTrack(localPath: string): Promise<{ extractedPath?: string; error?: string }> {
+async function extractAudioTrack(localPath: string, extension: '.m4a' | '.wav'): Promise<{ extractedPath?: string; error?: string }> {
   const directory = mkdtempSync(join(tmpdir(), 'feishu-media-'));
-  const extractedPath = join(directory, 'audio.m4a');
-  const command = `ffmpeg -y -i ${quoteShellArg(localPath)} -vn -acodec aac ${quoteShellArg(extractedPath)}`;
+  const extractedPath = join(directory, `audio${extension}`);
+  const command = extension === '.wav'
+    ? `ffmpeg -y -i ${quoteShellArg(localPath)} -vn -ar 16000 -ac 1 -c:a pcm_s16le ${quoteShellArg(extractedPath)}`
+    : `ffmpeg -y -i ${quoteShellArg(localPath)} -vn -acodec aac ${quoteShellArg(extractedPath)}`;
   try {
     const invocation = buildShellInvocation(command);
     await execFileAsync(invocation.file, invocation.args, {
@@ -69,14 +71,33 @@ export async function transcribeAudio(localPath: string, commandTemplate?: strin
     ? commandTemplate.replaceAll('{file}', quoteShellArg(localPath))
     : `${commandTemplate} ${quoteShellArg(localPath)}`;
   const directResult = await runCommand(directCommand, commandTemplate.split(/\s+/)[0]);
-  if (directResult.text || mode !== 'media') {
+  if (directResult.text) {
     return directResult;
   }
 
-  const extracted = await extractAudioTrack(localPath);
+  const wav = await extractAudioTrack(localPath, '.wav');
+  if (!wav.extractedPath) {
+    return mode === 'media'
+      ? {
+          error: `Direct transcription failed: ${directResult.error || 'unknown error'}; ffmpeg extraction failed: ${wav.error || 'unknown error'}`,
+        }
+      : directResult;
+  }
+
+  const wavCommand = commandTemplate.includes('{file}')
+    ? commandTemplate.replaceAll('{file}', quoteShellArg(wav.extractedPath))
+    : `${commandTemplate} ${quoteShellArg(wav.extractedPath)}`;
+  const wavResult = await runCommand(wavCommand, `${commandTemplate.split(/\s+/)[0]}+ffmpeg-wav`);
+  if (wavResult.text || mode !== 'media') {
+    return wavResult.text ? wavResult : {
+      error: `Direct transcription failed: ${directResult.error || 'unknown error'}; wav transcription failed: ${wavResult.error || 'unknown error'}`,
+    };
+  }
+
+  const extracted = await extractAudioTrack(localPath, '.m4a');
   if (!extracted.extractedPath) {
     return {
-      error: `Direct transcription failed: ${directResult.error || 'unknown error'}; ffmpeg extraction failed: ${extracted.error || 'unknown error'}`,
+      error: `Direct transcription failed: ${directResult.error || 'unknown error'}; wav transcription failed: ${wavResult.error || 'unknown error'}; ffmpeg extraction failed: ${extracted.error || 'unknown error'}`,
     };
   }
 
@@ -88,6 +109,6 @@ export async function transcribeAudio(localPath: string, commandTemplate?: strin
     return extractedResult;
   }
   return {
-    error: `Direct transcription failed: ${directResult.error || 'unknown error'}; extracted-audio transcription failed: ${extractedResult.error || 'unknown error'}`,
+    error: `Direct transcription failed: ${directResult.error || 'unknown error'}; wav transcription failed: ${wavResult.error || 'unknown error'}; extracted-audio transcription failed: ${extractedResult.error || 'unknown error'}`,
   };
 }

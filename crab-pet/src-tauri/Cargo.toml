@@ -1,0 +1,15 @@
+[package]
+name = "feishu-crab-pet"
+version = "0.1.0"
+description = "Dock-bound Feishu Claude Code crab pet"
+authors = ["feishu-claude-code"]
+license = "MIT"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
