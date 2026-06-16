@@ -120,7 +120,7 @@ The local `.app` bundle is generated at:
 本地 `.app` 会生成在：
 
 ```text
-crab-pet/src-tauri/target/release/bundle/macos/Feishu Crab Pet.app
+crab-pet/src-tauri/target/release/bundle/macos/Dardanus.app
 ```
 
 Packaged macOS app binaries are intentionally not committed to this repository. Publish them separately through GitHub Releases.

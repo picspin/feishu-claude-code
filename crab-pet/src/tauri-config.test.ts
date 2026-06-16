@@ -41,8 +41,8 @@ test('main window leaves enough room for the animated hermit crab', () => {
 
   assert.equal(config.app?.macOSPrivateApi, true);
   const window = config.app?.windows?.[0];
-  assert.equal(window?.width, 180);
-  assert.equal(window?.height, 150);
+  assert.equal(window?.width, 160);
+  assert.equal(window?.height, 124);
   assert.equal(window?.transparent, true);
   assert.deepEqual(window?.backgroundColor, [0, 0, 0, 0]);
   assert.equal(window?.shadow, false);
@@ -100,6 +100,7 @@ test('right click opens a pet menu with wake, reload, and quit actions', () => {
   assert.match(html, /data-menu-action="reload"/);
   assert.match(html, /data-menu-action="quit"/);
   assert.match(app, /showCrabMenu/);
+  assert.match(app, /showTransientBubble/);
   assert.match(app, /wakeBridgeFromSleep/);
   assert.match(app, /contextmenu/);
   assert.match(app, /event\.preventDefault\(\)/);

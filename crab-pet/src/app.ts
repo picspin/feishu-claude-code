@@ -79,6 +79,14 @@ function hideCrabMenu(): void {
   crabMenu.setAttribute('aria-hidden', 'true');
 }
 
+function showTransientBubble(message: string): void {
+  bubblePanel.textContent = message;
+  bubblePanel.dataset.visible = 'true';
+  window.setTimeout(() => {
+    bubblePanel.dataset.visible = 'false';
+  }, 4_000);
+}
+
 function showCrabMenu(event: MouseEvent): void {
   event.preventDefault();
   event.stopPropagation();
@@ -102,8 +110,14 @@ async function reloadPetStatus(): Promise<void> {
 
 async function wakeBridgeFromSleep(): Promise<void> {
   cancelBubblingIntent();
-  await startDaemon().catch(() => undefined);
-  await reloadPetStatus();
+  showTransientBubble('Waking bridge and tunnel...');
+  try {
+    await startDaemon();
+    await reloadPetStatus();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Wake failed';
+    showTransientBubble(message);
+  }
 }
 
 async function runMenuAction(action: string | undefined): Promise<void> {

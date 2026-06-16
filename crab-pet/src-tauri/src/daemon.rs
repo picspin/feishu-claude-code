@@ -4,7 +4,7 @@ use std::{
     net::{SocketAddr, TcpStream},
     path::PathBuf,
     process::{Command, Stdio},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub fn ensure_daemon() -> Result<String, String> {
@@ -12,11 +12,12 @@ pub fn ensure_daemon() -> Result<String, String> {
         return Ok("Bridge already healthy".to_string());
     }
 
-    run_daemon("start")
+    start_daemon()
 }
 
 pub fn start_daemon() -> Result<String, String> {
-    run_daemon("start")
+    let output = run_daemon("start")?;
+    wait_for_daemon_stack(Duration::from_secs(20)).map(|()| output)
 }
 
 pub fn stop_daemon() -> Result<String, String> {
@@ -142,4 +143,16 @@ fn daemon_status_has_tunnel(status: &str) -> bool {
     status
         .lines()
         .any(|line| line.trim() == "cloudflared tunnel: running")
+}
+
+fn wait_for_daemon_stack(timeout: Duration) -> Result<(), String> {
+    let start = Instant::now();
+    while start.elapsed() < timeout {
+        if daemon_stack_is_healthy() {
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+
+    Err("daemon started but bridge or cloudflared tunnel did not become healthy".to_string())
 }

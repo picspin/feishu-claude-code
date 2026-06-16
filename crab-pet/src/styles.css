@@ -2,8 +2,8 @@
   color-scheme: light dark;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   background: transparent;
-  --pet-window-width: 180px;
-  --pet-window-height: 150px;
+  --pet-window-width: 160px;
+  --pet-window-height: 124px;
   --crab-art: url("/src/assets/crab-neutral.png");
 }
 
@@ -21,14 +21,14 @@ body,
   position: relative;
   display: grid;
   place-items: center;
-  padding: 14px;
+  padding: 12px;
   box-sizing: border-box;
 }
 
 .crab-shell {
   position: relative;
-  width: 152px;
-  height: 116px;
+  width: 136px;
+  height: 100px;
   border: 0;
   background: transparent;
   cursor: grab;
@@ -63,7 +63,7 @@ body,
 .bubble-panel {
   position: absolute;
   right: 8px;
-  bottom: 118px;
+  bottom: 102px;
   max-width: 164px;
   padding: 6px 8px;
   border: 1px solid rgb(255 255 255 / 0.44);
