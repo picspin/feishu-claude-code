@@ -90,3 +90,14 @@ test('app ensures the bridge daemon and wires horizontal pet dragging', () => {
   assert.match(app, /drag\.pointerMove/);
   assert.match(app, /drag\.pointerUp/);
 });
+
+test('right click wakes the pet by relaunching the daemon and refreshing state', () => {
+  const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+
+  assert.match(app, /wakeBridgeFromSleep/);
+  assert.match(app, /contextmenu/);
+  assert.match(app, /event\.preventDefault\(\)/);
+  assert.match(app, /ensureDaemon\(\)/);
+  assert.match(app, /positionNearDock\(\)/);
+  assert.match(app, /refresh\(\)/);
+});

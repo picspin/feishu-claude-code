@@ -1,4 +1,4 @@
-# Feishu Claude Code Bridge / 飞书 Claude Code 桥接
+# Dardanus / macOS Dock Hermit Crab Pet for Feishu Claude Code
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
@@ -6,9 +6,9 @@
 [![Feishu](https://img.shields.io/badge/Feishu-IM-3370FF)](https://open.feishu.cn/)
 [![Claude Code](https://img.shields.io/badge/Claude-Code-black)](https://claude.ai/code)
 
-Bridge Feishu IM messages into a local Claude Code session and send Claude's replies back to Feishu.
+Dardanus is a macOS Dock hermit crab desktop pet that launches and supervises a local Feishu-to-Claude Code bridge. Open the pet to start the bridge and Cloudflare tunnel, chat from Feishu on your phone, and watch Dardanus react as Claude thinks, replies, or receives files.
 
-通过飞书事件订阅 Webhook 把飞书 IM 消息接入本地 Claude Code 会话，并将 Claude 的回复发回飞书。支持文字、富文本、图片及文档（PDF/DOCX/MARKDOWN）
+Dardanus 是一个面向 macOS Dock 的寄居蟹桌宠：打开它即可启动本地 Feishu 到 Claude Code 的桥接与 Cloudflare tunnel；在手机飞书里对话时，它会用睡觉、挥钳、爬行、眨眼、吐泡等状态反馈 Claude 和飞书消息活动。项目当前重心已转向这个桌宠入口，桥接能力作为 Dardanus 的本地通信内核继续演进。
 
 | 截图 1 | 截图 2 | 截图 3 |
 | :---: | :---: | :---: |
@@ -20,7 +20,7 @@ Bridge Feishu IM messages into a local Claude Code session and send Claude's rep
 - [Overview / 项目概览](#overview--项目概览)
 - [Features / 功能特性](#features--功能特性)
 - [Architecture / 架构说明](#architecture--架构说明)
-- [macOS Dock Crab Pet / macOS Dock 寄居蟹桌宠](#macos-dock-crab-pet--macos-dock-寄居蟹桌宠)
+- [Dardanus Dock Pet / Dardanus Dock 寄居蟹桌宠](#dardanus-dock-pet--dardanus-dock-寄居蟹桌宠)
 - [Requirements / 环境要求](#requirements--环境要求)
 - [Quick Start / 快速开始](#quick-start--快速开始)
 - [Installation / 安装](#installation--安装)
@@ -59,7 +59,8 @@ The bridge is intentionally lightweight. It does not embed a heavy OCR or docume
 - Support Feishu-side approval via `y` / `n` for Claude tool permissions / 支持在飞书里用 `y` / `n` 审批 Claude 工具权限
 - Provide slash-style commands such as `/help`, `/status`, `/model`, `/permission`, `/skills` / 提供 `/help`、`/status`、`/model`、`/permission`、`/skills` 等命令
 - Run in foreground or daemon mode / 支持前台运行或 daemon 后台运行
-- Launch an optional macOS Dock hermit crab pet that starts/stops the bridge and tunnel, then reflects bridge, tunnel, Claude, and Feishu activity states / 可启动 macOS Dock 寄居蟹桌宠，由桌宠启动/停止 bridge 与 tunnel，并映射 bridge、tunnel、Claude 与飞书消息状态
+- Launch Dardanus, the macOS Dock hermit crab pet that starts/stops the bridge and tunnel, then reflects bridge, tunnel, Claude, and Feishu activity states / 启动 Dardanus 这个 macOS Dock 寄居蟹桌宠，由桌宠启动/停止 bridge 与 tunnel，并映射 bridge、tunnel、Claude 与飞书消息状态
+- Planned expansion to WeChat and other mobile IM endpoints after the Feishu path is stable / 飞书路径稳定后，计划继续接入 WeChat 与其他手机 IM 入口
 
 ## Architecture / 架构说明
 
@@ -77,21 +78,17 @@ The bridge is intentionally lightweight. It does not embed a heavy OCR or docume
 5. Claude 按需读取本地文件或调用图片 / PDF 处理能力。
 6. 最终文本回复回发到飞书。
 
-## macOS Dock Crab Pet / macOS Dock 寄居蟹桌宠
+## Dardanus Dock Pet / Dardanus Dock 寄居蟹桌宠
 
-The `crab-pet/` app is a Tauri desktop companion for macOS. Opening the pet starts the Feishu bridge and Cloudflare tunnel; quitting the pet stops them. The pet stays in the Dock-safe area, renders with transparent PNG sprites, and uses the bridge `/status` and `/events` endpoints to show activity.
+The `crab-pet/` app is Dardanus, a Tauri desktop companion for macOS named after a real hermit crab genus. Opening Dardanus starts the Feishu bridge and Cloudflare tunnel; quitting it stops them. The pet stays in the Dock-safe area, renders with transparent PNG sprites, and uses the bridge `/status` and `/events` endpoints to show activity.
 
-`crab-pet/` 是一个 macOS Tauri 桌面伴侣。打开桌宠会启动 Feishu bridge 与 Cloudflare tunnel；退出桌宠会停止它们。桌宠固定在 Dock 上方安全区域，用透明 PNG 精灵渲染，并通过 bridge 的 `/status` 与 `/events` 端点展示活动状态。
-
-Design spec / 设计文档：
-
-- [`docs/superpowers/specs/2026-06-15-dock-crab-pet-design.md`](./docs/superpowers/specs/2026-06-15-dock-crab-pet-design.md)
+`crab-pet/` 是 Dardanus，一个以真实寄居蟹属命名的 macOS Tauri 桌面伴侣。打开 Dardanus 会启动 Feishu bridge 与 Cloudflare tunnel；退出它会停止这些本地进程。桌宠固定在 Dock 上方安全区域，用透明 PNG 精灵渲染，并通过 bridge 的 `/status` 与 `/events` 端点展示活动状态。
 
 Prototype and production assets / 原型与当前生产资产：
 
 | Prototype sprite sheet / 原型状态图 | App icon / 应用图标 | Sleep state / 离线睡眠 |
 | :---: | :---: | :---: |
-| <img src="./crab-pet/src/assets/hermit-crab-sprite-sheet.png" width="320" alt="Hermit crab sprite sheet"> | <img src="./crab-pet/src-tauri/icons/icon.png" width="128" alt="Feishu Crab Pet icon"> | <img src="./crab-pet/src/assets/crab-sleep.png" width="128" alt="Sleeping crab pet"> |
+| <img src="./crab-pet/src/assets/hermit-crab-sprite-sheet.png" width="320" alt="Hermit crab sprite sheet"> | <img src="./crab-pet/src-tauri/icons/icon.png" width="128" alt="Dardanus app icon"> | <img src="./crab-pet/src/assets/crab-sleep.png" width="128" alt="Sleeping crab pet"> |
 
 State mapping / 状态映射：
 
@@ -103,6 +100,12 @@ State mapping / 状态映射：
 - `wink`: recent non-text Feishu input such as image, audio, media, or file / 最近收到图片、语音、media 或文件等非文本消息
 - `bubbling`: reply completed, single click, or hover/hold intent for recent activity / 回复完成、单击或悬停意图触发吐泡
 - `shrink`: more than three clicks in a burst; holds for about 10 seconds / 快速点击超过三次触发缩壳，保持约 10 秒
+
+Interaction notes / 交互说明：
+
+- Right click Dardanus to wake it from sleep by relaunching the local bridge daemon and refreshing status / 右键 Dardanus 可从睡眠状态尝试重新拉起本地 bridge daemon 并刷新状态
+- Press and drag on the crab to move it horizontally near the Dock / 按住寄居蟹可在 Dock 附近横向拖动
+- Future IM adapters can reuse the same pet state model after Feishu, including WeChat and other phone-first chat surfaces / 后续 WeChat 与其他手机 IM 入口可以复用同一套桌宠状态模型
 
 Build the macOS app / 构建 macOS App：
 

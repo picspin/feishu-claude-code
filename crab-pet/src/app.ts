@@ -72,6 +72,13 @@ function startBubblingIntent(): void {
   }, 5_000);
 }
 
+async function wakeBridgeFromSleep(): Promise<void> {
+  cancelBubblingIntent();
+  await ensureDaemon().catch(() => undefined);
+  await positionNearDock().catch(() => undefined);
+  await refresh();
+}
+
 crabButton.addEventListener('click', () => {
   if (drag.consumeDragClick()) {
     return;
@@ -82,6 +89,11 @@ crabButton.addEventListener('click', () => {
     cancelBubblingIntent();
     setInteraction(gesture);
   }
+});
+
+crabButton.addEventListener('contextmenu', (event) => {
+  event.preventDefault();
+  void wakeBridgeFromSleep();
 });
 
 crabButton.addEventListener('pointerenter', () => {
