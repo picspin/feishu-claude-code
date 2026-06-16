@@ -7,7 +7,7 @@ import { deriveCrabState, type InteractionState } from './state.js';
 import { createHorizontalPetDrag } from './drag.js';
 import { createTimedPetDisplay } from './display-state.js';
 import { createCrawlLocomotion } from './locomotion.js';
-import { ensureDaemon, positionNearDock, quitApp, startDaemon, stopDaemon } from './tauri.js';
+import { ensureDaemon, positionNearDock, quitApp, startDaemon } from './tauri.js';
 
 const button = document.querySelector<HTMLElement>('#crab-button');
 const panel = document.querySelector<HTMLElement>('#bubble-panel');
@@ -27,9 +27,32 @@ const crawlLocomotion = createCrawlLocomotion();
 let interaction: InteractionState | undefined;
 let interactionTimer: number | undefined;
 let bubblingIntentTimer: number | undefined;
+let autoWakeInFlight = false;
+let lastAutoWakeAt = 0;
+
+function shouldAutoWake(snapshot: Awaited<ReturnType<typeof fetchBridgeSnapshot>>): boolean {
+  return snapshot.status.bridge !== 'online' || snapshot.status.tunnel !== 'online';
+}
+
+function maybeAutoWake(snapshot: Awaited<ReturnType<typeof fetchBridgeSnapshot>>): void {
+  const now = Date.now();
+  if (!shouldAutoWake(snapshot) || autoWakeInFlight || now - lastAutoWakeAt < 20_000) {
+    return;
+  }
+
+  lastAutoWakeAt = now;
+  autoWakeInFlight = true;
+  void ensureDaemon()
+    .then(refresh)
+    .catch(() => undefined)
+    .finally(() => {
+      autoWakeInFlight = false;
+    });
+}
 
 async function refresh(): Promise<void> {
   const snapshot = await fetchBridgeSnapshot().catch(() => offlineSnapshot());
+  maybeAutoWake(snapshot);
   const businessState = deriveCrabState({ ...snapshot, interaction });
   const state = timedDisplay.update(businessState);
   crawlLocomotion.setActive(state === 'crawl' || state === 'dodge');
@@ -218,7 +241,6 @@ crabButton.addEventListener('mouseleave', () => {
 
 window.addEventListener('beforeunload', () => {
   crawlLocomotion.stop();
-  void stopDaemon().catch(() => undefined);
 });
 
 void positionNearDock().catch(() => undefined);

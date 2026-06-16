@@ -36,7 +36,7 @@ cloudflared_wait_until_running() {
     if [ -x "$TUNNEL_SCRIPT" ] && "$TUNNEL_SCRIPT" status | grep -q "cloudflared tunnel: running"; then
       return 0
     fi
-    if lsof -tiTCP:20241 -sTCP:LISTEN >/dev/null 2>&1; then
+    if /usr/sbin/lsof -tiTCP:20241 -sTCP:LISTEN >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
@@ -79,6 +79,12 @@ bridge_stop_orphans() {
   if [ -n "$bridge_pid" ]; then
     kill $bridge_pid 2>/dev/null || true
   fi
+
+  local stale_bridge_pids
+  stale_bridge_pids="$(/usr/bin/pgrep -f "${PROJECT_DIR}/dist/main.js start" 2>/dev/null || true)"
+  if [ -n "$stale_bridge_pids" ]; then
+    kill $stale_bridge_pids 2>/dev/null || true
+  fi
 }
 
 bridge_wait_until_stopped() {
@@ -86,6 +92,22 @@ bridge_wait_until_stopped() {
   local i
   for ((i = 0; i < attempts; i++)); do
     if ! /usr/sbin/lsof -tiTCP:8787 -sTCP:LISTEN >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+bridge_health_ok() {
+  /usr/bin/curl -fsS --max-time 2 "http://127.0.0.1:8787/health" >/dev/null 2>&1
+}
+
+bridge_wait_until_running() {
+  local attempts="${1:-20}"
+  local i
+  for ((i = 0; i < attempts; i++)); do
+    if bridge_health_ok; then
       return 0
     fi
     sleep 1
@@ -129,6 +151,18 @@ macos_is_loaded() {
   launchctl print "gui/$(id -u)/$(macos_bridge_label)" &>/dev/null
 }
 
+bridge_stop_pid_file() {
+  local pid_file="$(macos_pid_file)"
+  if [ -f "$pid_file" ]; then
+    local pid
+    pid="$(cat "$pid_file" 2>/dev/null || true)"
+    if [ -n "$pid" ]; then
+      kill "$pid" 2>/dev/null || true
+    fi
+    rm -f "$pid_file"
+  fi
+}
+
 macos_bootstrap() {
   local label="$1"
   local plist="$2"
@@ -153,10 +187,9 @@ macos_bootstrap() {
 macos_start() {
   local node_bin="$(resolve_node_bin)"
   local launchd_dir="$(macos_launchd_dir)"
-  local bridge_label="$(macos_bridge_label)"
   local tunnel_label="$(macos_tunnel_label)"
-  local bridge_plist="$(macos_bridge_plist_path)"
   local tunnel_plist="$(macos_tunnel_plist_path)"
+  local pid_file="$(macos_pid_file)"
 
   if [ -z "$node_bin" ]; then
     echo "node not found. Install Node.js or set NODE_BIN to an executable node path."
@@ -166,9 +199,10 @@ macos_start() {
   mkdir -p "$DATA_DIR/logs" "$launchd_dir"
   load_env_file
 
-  launchctl bootout "gui/$(id -u)/${bridge_label}" 2>/dev/null || true
   launchctl bootout "gui/$(id -u)/${tunnel_label}" 2>/dev/null || true
   sleep 1
+  launchctl bootout "gui/$(id -u)/$(macos_bridge_label)" 2>/dev/null || true
+  bridge_stop_pid_file
   bridge_stop_orphans
   bridge_wait_until_stopped 10 || true
   cloudflared_stop
@@ -201,51 +235,25 @@ macos_start() {
 </plist>
 PLIST
 
-  cat > "$bridge_plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>${bridge_label}</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>${node_bin}</string>
-    <string>${PROJECT_DIR}/dist/main.js</string>
-    <string>start</string>
-  </array>
-  <key>WorkingDirectory</key>
-  <string>${PROJECT_DIR}</string>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>${DATA_DIR}/logs/stdout.log</string>
-  <key>StandardErrorPath</key>
-  <string>${DATA_DIR}/logs/stderr.log</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>PATH</key>
-    <string>${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <key>FEISHU_APP_ID</key>
-    <string>${FEISHU_APP_ID:-}</string>
-    <key>FEISHU_APP_SECRET</key>
-    <string>${FEISHU_APP_SECRET:-}</string>
-    <key>FEISHU_VERIFICATION_TOKEN</key>
-    <string>${FEISHU_VERIFICATION_TOKEN:-}</string>
-    <key>FEISHU_ENCRYPT_KEY</key>
-    <string>${FEISHU_ENCRYPT_KEY:-}</string>
-    <key>FEISHU_PUBLIC_BASE_URL</key>
-    <string>${FEISHU_PUBLIC_BASE_URL:-}</string>
-    <key>FEISHU_AUDIO_TRANSCRIPTION_COMMAND</key>
-    <string>${FEISHU_AUDIO_TRANSCRIPTION_COMMAND:-}</string>
-  </dict>
-</dict>
-</plist>
-PLIST
-
   macos_bootstrap "$tunnel_label" "$tunnel_plist"
-  macos_bootstrap "$bridge_label" "$bridge_plist"
-  cloudflared_wait_until_running 10 || true
+  (
+    cd "$PROJECT_DIR"
+    nohup env \
+      PATH="${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+      FEISHU_APP_ID="${FEISHU_APP_ID:-}" \
+      FEISHU_APP_SECRET="${FEISHU_APP_SECRET:-}" \
+      FEISHU_VERIFICATION_TOKEN="${FEISHU_VERIFICATION_TOKEN:-}" \
+      FEISHU_ENCRYPT_KEY="${FEISHU_ENCRYPT_KEY:-}" \
+      FEISHU_PUBLIC_BASE_URL="${FEISHU_PUBLIC_BASE_URL:-}" \
+      FEISHU_AUDIO_TRANSCRIPTION_COMMAND="${FEISHU_AUDIO_TRANSCRIPTION_COMMAND:-}" \
+      "$node_bin" "${PROJECT_DIR}/dist/main.js" start >> "${DATA_DIR}/logs/stdout.log" 2>> "${DATA_DIR}/logs/stderr.log" &
+    echo $! > "$pid_file"
+  )
+  bridge_wait_until_running 60 || {
+    echo "bridge did not become healthy on http://127.0.0.1:8787/health"
+    exit 1
+  }
+  cloudflared_wait_until_running 30 || true
   echo "Started feishu-claude-code daemon"
   cloudflared_status
 }
@@ -256,13 +264,14 @@ macos_stop() {
   launchctl bootout "gui/$(id -u)/$(macos_tunnel_label)" 2>/dev/null || true
   rm -f "$plist_path"
   rm -f "$(macos_bridge_plist_path)" "$(macos_tunnel_plist_path)"
+  bridge_stop_pid_file
   cloudflared_stop
   bridge_stop_orphans
   echo "Stopped feishu-claude-code daemon"
 }
 
 macos_status() {
-  if macos_is_loaded; then
+  if bridge_health_ok; then
     echo "Running"
   else
     echo "Not running"
