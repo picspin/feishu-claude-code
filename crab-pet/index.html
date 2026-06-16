@@ -3,14 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Feishu Crab Pet</title>
+    <title>Dardanus</title>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <main id="app" aria-label="Feishu Claude Code crab pet">
-      <button id="crab-button" class="crab-shell" aria-label="Show recent Feishu activity">
+    <main id="app" aria-label="Dardanus Claude Code hermit crab pet">
+      <button id="crab-button" class="crab-shell" aria-label="Show recent activity">
         <span class="crab-sprite" aria-hidden="true"></span>
       </button>
+      <nav id="crab-menu" class="crab-menu" data-visible="false" aria-hidden="true" aria-label="Dardanus actions">
+        <button type="button" data-menu-action="wake">Wake</button>
+        <button type="button" data-menu-action="reload">Reload</button>
+        <button type="button" data-menu-action="quit">Quit</button>
+      </nav>
       <section id="bubble-panel" class="bubble-panel" aria-live="polite"></section>
     </main>
     <script type="module" src="/src/app.ts"></script>

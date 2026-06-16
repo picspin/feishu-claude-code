@@ -19,6 +19,11 @@ pub fn daemon_status() -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
 pub fn position_near_dock(window: tauri::WebviewWindow) -> Result<(), String> {
     crate::window::position_near_dock(window)
 }

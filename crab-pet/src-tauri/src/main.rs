@@ -18,6 +18,7 @@ fn main() {
             commands::start_daemon,
             commands::stop_daemon,
             commands::daemon_status,
+            commands::quit_app,
             commands::position_near_dock
         ])
         .build(tauri::generate_context!())

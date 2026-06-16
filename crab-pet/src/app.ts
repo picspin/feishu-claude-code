@@ -7,17 +7,19 @@ import { deriveCrabState, type InteractionState } from './state.js';
 import { createHorizontalPetDrag } from './drag.js';
 import { createTimedPetDisplay } from './display-state.js';
 import { createCrawlLocomotion } from './locomotion.js';
-import { ensureDaemon, positionNearDock, stopDaemon } from './tauri.js';
+import { ensureDaemon, positionNearDock, quitApp, stopDaemon } from './tauri.js';
 
 const button = document.querySelector<HTMLElement>('#crab-button');
 const panel = document.querySelector<HTMLElement>('#bubble-panel');
+const menu = document.querySelector<HTMLElement>('#crab-menu');
 
-if (!button || !panel) {
+if (!button || !panel || !menu) {
   throw new Error('Crab UI did not mount');
 }
 
 const crabButton = button;
 const bubblePanel = panel;
+const crabMenu = menu;
 const gestures = createGestureTracker();
 const drag = createHorizontalPetDrag();
 const timedDisplay = createTimedPetDisplay();
@@ -72,14 +74,55 @@ function startBubblingIntent(): void {
   }, 5_000);
 }
 
-async function wakeBridgeFromSleep(): Promise<void> {
+function hideCrabMenu(): void {
+  crabMenu.dataset.visible = 'false';
+  crabMenu.setAttribute('aria-hidden', 'true');
+}
+
+function showCrabMenu(event: MouseEvent): void {
+  event.preventDefault();
+  event.stopPropagation();
   cancelBubblingIntent();
-  await ensureDaemon().catch(() => undefined);
+  const appBounds = document.querySelector<HTMLElement>('#app')?.getBoundingClientRect();
+  const menuWidth = crabMenu.offsetWidth || 96;
+  const menuHeight = crabMenu.offsetHeight || 96;
+  const maxLeft = Math.max(0, (appBounds?.width ?? window.innerWidth) - menuWidth - 4);
+  const maxTop = Math.max(0, (appBounds?.height ?? window.innerHeight) - menuHeight - 4);
+  crabMenu.style.left = `${Math.min(Math.max(4, event.clientX), maxLeft)}px`;
+  crabMenu.style.top = `${Math.min(Math.max(4, event.clientY), maxTop)}px`;
+  crabMenu.dataset.visible = 'true';
+  crabMenu.setAttribute('aria-hidden', 'false');
+}
+
+async function reloadPetStatus(): Promise<void> {
+  cancelBubblingIntent();
   await positionNearDock().catch(() => undefined);
   await refresh();
 }
 
+async function wakeBridgeFromSleep(): Promise<void> {
+  cancelBubblingIntent();
+  await ensureDaemon().catch(() => undefined);
+  await reloadPetStatus();
+}
+
+async function runMenuAction(action: string | undefined): Promise<void> {
+  hideCrabMenu();
+  if (action === 'wake') {
+    await wakeBridgeFromSleep();
+    return;
+  }
+  if (action === 'reload') {
+    await reloadPetStatus();
+    return;
+  }
+  if (action === 'quit') {
+    await quitApp().catch(() => undefined);
+  }
+}
+
 crabButton.addEventListener('click', () => {
+  hideCrabMenu();
   if (drag.consumeDragClick()) {
     return;
   }
@@ -92,8 +135,28 @@ crabButton.addEventListener('click', () => {
 });
 
 crabButton.addEventListener('contextmenu', (event) => {
-  event.preventDefault();
-  void wakeBridgeFromSleep();
+  showCrabMenu(event);
+});
+
+crabMenu.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  void runMenuAction(target.dataset.menuAction);
+});
+
+document.addEventListener('click', (event) => {
+  if (event.target instanceof Node && crabMenu.contains(event.target)) {
+    return;
+  }
+  hideCrabMenu();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    hideCrabMenu();
+  }
 });
 
 crabButton.addEventListener('pointerenter', () => {

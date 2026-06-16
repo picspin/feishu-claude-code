@@ -27,6 +27,10 @@ export async function stopDaemon(): Promise<string> {
   return invoke<string>('stop_daemon');
 }
 
+export async function quitApp(): Promise<void> {
+  await invoke<void>('quit_app');
+}
+
 export async function positionNearDock(): Promise<void> {
   await invoke<void>('position_near_dock');
 }

@@ -91,13 +91,31 @@ test('app ensures the bridge daemon and wires horizontal pet dragging', () => {
   assert.match(app, /drag\.pointerUp/);
 });
 
-test('right click wakes the pet by relaunching the daemon and refreshing state', () => {
+test('right click opens a pet menu with wake, reload, and quit actions', () => {
   const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
+  assert.match(html, /id="crab-menu"/);
+  assert.match(html, /data-menu-action="wake"/);
+  assert.match(html, /data-menu-action="reload"/);
+  assert.match(html, /data-menu-action="quit"/);
+  assert.match(app, /showCrabMenu/);
   assert.match(app, /wakeBridgeFromSleep/);
   assert.match(app, /contextmenu/);
   assert.match(app, /event\.preventDefault\(\)/);
   assert.match(app, /ensureDaemon\(\)/);
   assert.match(app, /positionNearDock\(\)/);
   assert.match(app, /refresh\(\)/);
+  assert.match(app, /quitApp\(\)/);
+});
+
+test('Tauri exposes a quit command for the pet menu', () => {
+  const commands = readFileSync(new URL('../src-tauri/src/commands.rs', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../src-tauri/src/main.rs', import.meta.url), 'utf8');
+  const tauri = readFileSync(new URL('../src/tauri.ts', import.meta.url), 'utf8');
+
+  assert.match(commands, /pub fn quit_app\(app:\s*tauri::AppHandle\)/);
+  assert.match(commands, /app\.exit\(0\)/);
+  assert.match(main, /commands::quit_app/);
+  assert.match(tauri, /quitApp/);
 });

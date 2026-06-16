@@ -103,7 +103,7 @@ State mapping / 状态映射：
 
 Interaction notes / 交互说明：
 
-- Right click Dardanus to wake it from sleep by relaunching the local bridge daemon and refreshing status / 右键 Dardanus 可从睡眠状态尝试重新拉起本地 bridge daemon 并刷新状态
+- Right click Dardanus to open its menu: `Wake` relaunches the local bridge daemon, `Reload` repositions near the Dock and refreshes status, and `Quit` exits the pet / 右键 Dardanus 会打开菜单：`Wake` 重新拉起本地 bridge daemon，`Reload` 贴近 Dock 并刷新状态，`Quit` 退出桌宠
 - Press and drag on the crab to move it horizontally near the Dock / 按住寄居蟹可在 Dock 附近横向拖动
 - Future IM adapters can reuse the same pet state model after Feishu, including WeChat and other phone-first chat surfaces / 后续 WeChat 与其他手机 IM 入口可以复用同一套桌宠状态模型
 
