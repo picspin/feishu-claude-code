@@ -7,7 +7,7 @@ import { deriveCrabState, type InteractionState } from './state.js';
 import { createHorizontalPetDrag } from './drag.js';
 import { createTimedPetDisplay } from './display-state.js';
 import { createCrawlLocomotion } from './locomotion.js';
-import { ensureDaemon, positionNearDock, quitApp, stopDaemon } from './tauri.js';
+import { ensureDaemon, positionNearDock, quitApp, startDaemon, stopDaemon } from './tauri.js';
 
 const button = document.querySelector<HTMLElement>('#crab-button');
 const panel = document.querySelector<HTMLElement>('#bubble-panel');
@@ -102,7 +102,7 @@ async function reloadPetStatus(): Promise<void> {
 
 async function wakeBridgeFromSleep(): Promise<void> {
   cancelBubblingIntent();
-  await ensureDaemon().catch(() => undefined);
+  await startDaemon().catch(() => undefined);
   await reloadPetStatus();
 }
 

@@ -8,7 +8,7 @@ use std::{
 };
 
 pub fn ensure_daemon() -> Result<String, String> {
-    if bridge_health_is_ok() {
+    if daemon_stack_is_healthy() {
         return Ok("Bridge already healthy".to_string());
     }
 
@@ -52,7 +52,7 @@ fn bridge_dir_from(manifest_dir: &std::path::Path, override_dir: Option<PathBuf>
 
 #[cfg(test)]
 mod tests {
-    use super::bridge_dir_from;
+    use super::{bridge_dir_from, daemon_status_has_tunnel};
     use std::path::PathBuf;
 
     #[test]
@@ -73,6 +73,20 @@ mod tests {
             bridge_dir_from(&manifest_dir, None),
             PathBuf::from("/Users/hilbert/.claude/skills/feishu-claude-code")
         );
+    }
+
+    #[test]
+    fn accepts_daemon_status_with_running_tunnel() {
+        assert!(daemon_status_has_tunnel(
+            "Running\ncloudflared tunnel: running"
+        ));
+    }
+
+    #[test]
+    fn rejects_daemon_status_with_offline_tunnel() {
+        assert!(!daemon_status_has_tunnel(
+            "Running\ncloudflared tunnel: not running"
+        ));
     }
 }
 
@@ -115,4 +129,17 @@ fn bridge_health_is_ok() -> bool {
 
     let mut response = String::new();
     stream.read_to_string(&mut response).is_ok() && response.starts_with("HTTP/1.1 200")
+}
+
+fn daemon_stack_is_healthy() -> bool {
+    bridge_health_is_ok()
+        && run_daemon("status")
+            .map(|status| daemon_status_has_tunnel(&status))
+            .unwrap_or(false)
+}
+
+fn daemon_status_has_tunnel(status: &str) -> bool {
+    status
+        .lines()
+        .any(|line| line.trim() == "cloudflared tunnel: running")
 }

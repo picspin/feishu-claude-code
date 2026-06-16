@@ -103,7 +103,7 @@ test('right click opens a pet menu with wake, reload, and quit actions', () => {
   assert.match(app, /wakeBridgeFromSleep/);
   assert.match(app, /contextmenu/);
   assert.match(app, /event\.preventDefault\(\)/);
-  assert.match(app, /ensureDaemon\(\)/);
+  assert.match(app, /startDaemon\(\)/);
   assert.match(app, /positionNearDock\(\)/);
   assert.match(app, /refresh\(\)/);
   assert.match(app, /quitApp\(\)/);

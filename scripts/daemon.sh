@@ -29,6 +29,21 @@ cloudflared_status() {
   fi
 }
 
+cloudflared_wait_until_running() {
+  local attempts="${1:-10}"
+  local i
+  for ((i = 0; i < attempts; i++)); do
+    if [ -x "$TUNNEL_SCRIPT" ] && "$TUNNEL_SCRIPT" status | grep -q "cloudflared tunnel: running"; then
+      return 0
+    fi
+    if lsof -tiTCP:20241 -sTCP:LISTEN >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 cloudflared_stop() {
   if [ -x "$TUNNEL_SCRIPT" ]; then
     "$TUNNEL_SCRIPT" stop
@@ -79,6 +94,27 @@ macos_is_loaded() {
   launchctl print "gui/$(id -u)/$(macos_bridge_label)" &>/dev/null
 }
 
+macos_bootstrap() {
+  local label="$1"
+  local plist="$2"
+  local domain="gui/$(id -u)"
+  local service="${domain}/${label}"
+  local attempt
+
+  for attempt in 1 2 3; do
+    if launchctl bootstrap "$domain" "$plist"; then
+      return 0
+    fi
+    if launchctl print "$service" &>/dev/null; then
+      launchctl kickstart -k "$service" 2>/dev/null || true
+      return 0
+    fi
+    sleep 1
+  done
+
+  launchctl bootstrap "$domain" "$plist"
+}
+
 macos_start() {
   local node_bin="$(command -v node || echo '/usr/local/bin/node')"
   local launchd_dir="$(macos_launchd_dir)"
@@ -89,11 +125,12 @@ macos_start() {
 
   mkdir -p "$DATA_DIR/logs" "$launchd_dir"
   load_env_file
-  bridge_stop_orphans
-  cloudflared_stop
 
   launchctl bootout "gui/$(id -u)/${bridge_label}" 2>/dev/null || true
   launchctl bootout "gui/$(id -u)/${tunnel_label}" 2>/dev/null || true
+  sleep 1
+  bridge_stop_orphans
+  cloudflared_stop
 
   cat > "$tunnel_plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -165,8 +202,9 @@ PLIST
 </plist>
 PLIST
 
-  launchctl bootstrap "gui/$(id -u)" "$tunnel_plist"
-  launchctl bootstrap "gui/$(id -u)" "$bridge_plist"
+  macos_bootstrap "$tunnel_label" "$tunnel_plist"
+  macos_bootstrap "$bridge_label" "$bridge_plist"
+  cloudflared_wait_until_running 10 || true
   echo "Started feishu-claude-code daemon"
   cloudflared_status
 }
