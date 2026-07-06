@@ -13,10 +13,22 @@
       </button>
       <nav id="crab-menu" class="crab-menu" data-visible="false" aria-hidden="true" aria-label="Dardanus actions">
         <button type="button" data-menu-action="wake">Wake</button>
+        <button type="button" data-menu-action="setup">Setup</button>
         <button type="button" data-menu-action="reload">Reload</button>
         <button type="button" data-menu-action="quit">Quit</button>
       </nav>
       <section id="bubble-panel" class="bubble-panel" aria-live="polite"></section>
+      <section id="setup-panel" class="setup-panel" data-visible="false" aria-hidden="true" aria-labelledby="setup-title">
+        <p id="setup-count" class="setup-count"></p>
+        <h1 id="setup-title"></h1>
+        <p id="setup-body"></p>
+        <code id="setup-command"></code>
+        <div class="setup-actions">
+          <button type="button" data-setup-action="previous">Back</button>
+          <button type="button" data-setup-action="next">Next</button>
+          <button type="button" data-setup-action="done">Done</button>
+        </div>
+      </section>
     </main>
     <script type="module" src="/src/app.ts"></script>
   </body>

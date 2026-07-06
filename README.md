@@ -59,8 +59,9 @@ The bridge is intentionally lightweight. It does not embed a heavy OCR or docume
 - Support Feishu-side approval via `y` / `n` for Claude tool permissions / 支持在飞书里用 `y` / `n` 审批 Claude 工具权限
 - Provide slash-style commands such as `/help`, `/status`, `/model`, `/permission`, `/skills` / 提供 `/help`、`/status`、`/model`、`/permission`、`/skills` 等命令
 - Run in foreground or daemon mode / 支持前台运行或 daemon 后台运行
-- Launch Dardanus, the macOS Dock hermit crab pet that starts/stops the bridge and tunnel, then reflects bridge, tunnel, Claude, and Feishu activity states / 启动 Dardanus 这个 macOS Dock 寄居蟹桌宠，由桌宠启动/停止 bridge 与 tunnel，并映射 bridge、tunnel、Claude 与飞书消息状态
-- Planned expansion to WeChat and other mobile IM endpoints after the Feishu path is stable / 飞书路径稳定后，计划继续接入 WeChat 与其他手机 IM 入口
+- Launch Dardanus, the macOS hermit crab desktop pet that starts/supervises the bridge and tunnel, then reflects bridge, tunnel, Claude, and Feishu activity states / 启动 Dardanus 这个 macOS 寄居蟹桌宠，由桌宠启动和守护 bridge 与 tunnel，并映射 bridge、tunnel、Claude 与飞书消息状态
+- Drag Dardanus freely around the screen, with magnetic snapping near screen edges and the Dock band / 支持在屏幕任意位置拖动 Dardanus，并在屏幕边缘与 Dock 区域附近磁吸贴靠
+- Planned expansion to WeChat and WeCom through OpenClaw-style QR login adapters after the Feishu path is stable / 飞书路径稳定后，计划通过 OpenClaw 风格的扫码登录适配器继续接入 WeChat 与 WeCom
 
 ## Architecture / 架构说明
 
@@ -80,9 +81,9 @@ The bridge is intentionally lightweight. It does not embed a heavy OCR or docume
 
 ## Dardanus Dock Pet / Dardanus Dock 寄居蟹桌宠
 
-The `crab-pet/` app is Dardanus, a Tauri desktop companion for macOS named after a real hermit crab genus. Opening Dardanus starts the Feishu bridge and Cloudflare tunnel; quitting it stops them. The pet stays in the Dock-safe area, renders with transparent PNG sprites, and uses the bridge `/status` and `/events` endpoints to show activity.
+The `crab-pet/` app is Dardanus, a Tauri desktop companion for macOS named after a real hermit crab genus. Opening Dardanus starts and supervises the Feishu bridge and Cloudflare tunnel. The pet renders with transparent PNG sprites, can be dragged freely around the screen, and uses the bridge `/status` and `/events` endpoints to show activity.
 
-`crab-pet/` 是 Dardanus，一个以真实寄居蟹属命名的 macOS Tauri 桌面伴侣。打开 Dardanus 会启动 Feishu bridge 与 Cloudflare tunnel；退出它会停止这些本地进程。桌宠固定在 Dock 上方安全区域，用透明 PNG 精灵渲染，并通过 bridge 的 `/status` 与 `/events` 端点展示活动状态。
+`crab-pet/` 是 Dardanus，一个以真实寄居蟹属命名的 macOS Tauri 桌面伴侣。打开 Dardanus 会启动并守护 Feishu bridge 与 Cloudflare tunnel。桌宠使用透明 PNG 精灵渲染，可在屏幕任意位置拖动，并通过 bridge 的 `/status` 与 `/events` 端点展示活动状态。
 
 Prototype and production assets / 原型与当前生产资产：
 
@@ -103,9 +104,22 @@ State mapping / 状态映射：
 
 Interaction notes / 交互说明：
 
-- Right click Dardanus to open its menu: `Wake` relaunches the local bridge daemon, `Reload` repositions near the Dock and refreshes status, and `Quit` exits the pet / 右键 Dardanus 会打开菜单：`Wake` 重新拉起本地 bridge daemon，`Reload` 贴近 Dock 并刷新状态，`Quit` 退出桌宠
-- Press and drag on the crab to move it horizontally near the Dock / 按住寄居蟹可在 Dock 附近横向拖动
-- Future IM adapters can reuse the same pet state model after Feishu, including WeChat and other phone-first chat surfaces / 后续 WeChat 与其他手机 IM 入口可以复用同一套桌宠状态模型
+- Right click Dardanus to open its menu: `Wake` relaunches the local bridge daemon, `Setup` opens the onboarding guide, `Reload` snaps near the Dock and refreshes status, and `Quit` exits the pet / 右键 Dardanus 会打开菜单：`Wake` 重新拉起本地 bridge daemon，`Setup` 打开入门导览，`Reload` 贴近 Dock 并刷新状态，`Quit` 退出桌宠
+- Press and drag on the crab to move it anywhere on screen; releasing near a screen edge or Dock band magnetically snaps it into place / 按住寄居蟹可在屏幕任意位置拖动；释放到屏幕边缘或 Dock 区域附近时会磁吸贴靠
+- First-run onboarding walks through creating a Feishu/Lark bot, enabling `im.message.receive_v1`, setting the webhook URL, saving local bridge secrets, and using `Wake` / 首次运行导览会帮助完成 Feishu/Lark 机器人创建、订阅 `im.message.receive_v1`、配置 webhook、保存本地 bridge 密钥并使用 `Wake`
+- Future IM adapters can reuse the same pet state model after Feishu, including WeChat and WeCom QR-login channels via OpenClaw / 后续 WeChat 与 WeCom 扫码登录入口可以通过 OpenClaw 适配器复用同一套桌宠状态模型
+
+Future IM adapters / 后续 IM 适配：
+
+- WeChat reference: [Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin), which provides an OpenClaw WeChat channel with QR login / WeChat 参考：[Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin)，提供带扫码登录的 OpenClaw 微信通道
+- WeCom reference: [WecomTeam/wecom-openclaw-plugin](https://github.com/WecomTeam/wecom-openclaw-plugin), an OpenClaw plugin path for enterprise WeCom workflows / WeCom 参考：[WecomTeam/wecom-openclaw-plugin](https://github.com/WecomTeam/wecom-openclaw-plugin)，提供企业微信工作流的 OpenClaw 插件路径
+- Example WeChat bootstrap commands / WeChat 预期初始化命令示例：
+
+```bash
+npx -y @tencent-weixin/openclaw-weixin-cli install
+openclaw plugins install "@tencent-weixin/openclaw-weixin"
+openclaw channels login --channel openclaw-weixin
+```
 
 Build the macOS app / 构建 macOS App：
 

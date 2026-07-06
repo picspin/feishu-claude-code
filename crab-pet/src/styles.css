@@ -4,6 +4,8 @@
   background: transparent;
   --pet-window-width: 160px;
   --pet-window-height: 124px;
+  --setup-window-width: 360px;
+  --setup-window-height: 396px;
   --crab-art: url("/src/assets/crab-neutral.png");
 }
 
@@ -23,6 +25,17 @@ body,
   place-items: center;
   padding: 12px;
   box-sizing: border-box;
+}
+
+#app[data-setup="true"] {
+  display: block;
+  padding: 0;
+}
+
+#app[data-setup="true"] .crab-shell,
+#app[data-setup="true"] .bubble-panel,
+#app[data-setup="true"] .crab-menu {
+  display: none;
 }
 
 .crab-shell {
@@ -128,6 +141,85 @@ body,
 
 .crab-menu button[data-menu-action="quit"] {
   color: rgb(255 174 174);
+}
+
+.setup-panel {
+  position: absolute;
+  inset: 10px;
+  z-index: 10;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  border-radius: 8px;
+  background: rgb(23 27 31 / 0.94);
+  color: white;
+  box-sizing: border-box;
+  backdrop-filter: blur(20px);
+}
+
+.setup-panel[data-visible="true"] {
+  display: flex;
+}
+
+.setup-count {
+  margin: 0;
+  color: rgb(178 198 215);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.setup-panel h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 650;
+}
+
+.setup-panel p {
+  margin: 0;
+  color: rgb(226 233 239);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.setup-panel code {
+  min-height: 36px;
+  padding: 8px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.25);
+  color: rgb(186 232 255);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.setup-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: auto;
+}
+
+.setup-actions button {
+  height: 30px;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.1);
+  color: white;
+  font: inherit;
+  font-size: 12px;
+  cursor: default;
+}
+
+.setup-actions button:hover,
+.setup-actions button:focus-visible {
+  background: rgb(255 255 255 / 0.18);
+  outline: none;
 }
 
 .crab-shell[data-state="sleep"] {

@@ -18,6 +18,7 @@ test('main window has Tauri IPC capability for crab commands', () => {
   assert.equal(capability.permissions?.includes('core:window:allow-outer-position'), true);
   assert.equal(capability.permissions?.includes('core:window:allow-outer-size'), true);
   assert.equal(capability.permissions?.includes('core:window:allow-scale-factor'), true);
+  assert.equal(capability.permissions?.includes('core:window:allow-set-size'), true);
   assert.equal(capability.permissions?.includes('core:window:allow-set-position'), true);
 });
 
@@ -81,27 +82,31 @@ test('app triggers bubbling only through hover or hold intent', () => {
   assert.doesNotMatch(app, /setInteraction\(gestures\.click\(\)\)/);
 });
 
-test('app ensures the bridge daemon and wires horizontal pet dragging', () => {
+test('app ensures the bridge daemon and wires free pet dragging', () => {
   const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
 
   assert.match(app, /ensureDaemon\(\)/);
   assert.match(app, /maybeAutoWake/);
-  assert.match(app, /createHorizontalPetDrag/);
+  assert.match(app, /createPetDrag/);
   assert.match(app, /drag\.pointerDown/);
   assert.match(app, /drag\.pointerMove/);
   assert.match(app, /drag\.pointerUp/);
   assert.doesNotMatch(app, /stopDaemon\(\)/);
 });
 
-test('right click opens a pet menu with wake, reload, and quit actions', () => {
+test('right click opens a pet menu with wake, setup, reload, and quit actions', () => {
   const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
   assert.match(html, /id="crab-menu"/);
   assert.match(html, /data-menu-action="wake"/);
+  assert.match(html, /data-menu-action="setup"/);
   assert.match(html, /data-menu-action="reload"/);
   assert.match(html, /data-menu-action="quit"/);
   assert.match(app, /showCrabMenu/);
+  assert.match(app, /showSetupGuide/);
+  assert.match(app, /ONBOARDING_KEY/);
+  assert.match(app, /setPetWindowSize/);
   assert.match(app, /showTransientBubble/);
   assert.match(app, /wakeBridgeFromSleep/);
   assert.match(app, /contextmenu/);
