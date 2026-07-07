@@ -1,5 +1,6 @@
 mod commands;
 mod daemon;
+mod setup;
 mod window;
 
 use tauri::Manager;
@@ -18,7 +19,9 @@ fn main() {
             commands::stop_daemon,
             commands::daemon_status,
             commands::quit_app,
-            commands::position_near_dock
+            commands::position_near_dock,
+            commands::open_setup_guide,
+            commands::save_setup_config
         ])
         .build(tauri::generate_context!())
         .expect("error while building Tauri app")

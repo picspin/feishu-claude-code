@@ -2,16 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { clampPetDrag, shouldContinueDrag, snapPetToMagneticTargets } from './drag.js';
 
-test('keeps pet drag clamped inside the full work area', () => {
+test('keeps pet drag clamped inside the full work area without magnetic snapping while moving', () => {
   assert.deepEqual(
     clampPetDrag({
-      startWindow: { x: 630, y: 714 },
-      pointerDelta: { x: 80, y: -40 },
-      scaleFactor: 2,
+      startWindow: { x: 20, y: 714 },
+      pointerDelta: { x: -5, y: 0 },
+      scaleFactor: 1,
       windowSize: { width: 360, height: 300 },
       workArea: { x: 0, y: 50, width: 2880, height: 1750 },
     }),
-    { x: 790, y: 634 },
+    { x: 15, y: 714 },
   );
 
   assert.deepEqual(

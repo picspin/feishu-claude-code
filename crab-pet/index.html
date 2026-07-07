@@ -19,13 +19,17 @@
       </nav>
       <section id="bubble-panel" class="bubble-panel" aria-live="polite"></section>
       <section id="setup-panel" class="setup-panel" data-visible="false" aria-hidden="true" aria-labelledby="setup-title">
-        <p id="setup-count" class="setup-count"></p>
-        <h1 id="setup-title"></h1>
-        <p id="setup-body"></p>
-        <code id="setup-command"></code>
+        <div class="setup-header">
+          <p id="setup-count" class="setup-count"></p>
+          <h1 id="setup-title"></h1>
+          <p id="setup-body"></p>
+        </div>
+        <div id="setup-client-list" class="setup-client-list" role="listbox" aria-label="Choose IM client"></div>
+        <form id="setup-form" class="setup-form"></form>
+        <pre id="setup-log" class="setup-log" aria-live="polite"></pre>
         <div class="setup-actions">
-          <button type="button" data-setup-action="previous">Back</button>
-          <button type="button" data-setup-action="next">Next</button>
+          <button type="button" data-setup-action="open-guide">Guide</button>
+          <button type="button" data-setup-action="save">Connect</button>
           <button type="button" data-setup-action="done">Done</button>
         </div>
       </section>

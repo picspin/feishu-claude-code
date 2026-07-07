@@ -9,38 +9,71 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { createPetDrag } from './drag.js';
 import { createTimedPetDisplay } from './display-state.js';
 import { createCrawlLocomotion } from './locomotion.js';
-import { ensureDaemon, positionNearDock, quitApp, startDaemon } from './tauri.js';
+import { ensureDaemon, openSetupGuide, positionNearDock, quitApp, saveSetupConfig, startDaemon } from './tauri.js';
 
 const PET_WINDOW_SIZE = { width: 160, height: 124 };
-const SETUP_WINDOW_SIZE = { width: 360, height: 396 };
+const SETUP_WINDOW_SIZE = { width: 460, height: 560 };
 const ONBOARDING_KEY = 'dardanus-onboarding-seen-v1';
-const SETUP_STEPS = [
+type SetupChannel = 'feishu' | 'wechat' | 'wecom';
+interface SetupField {
+  key: string;
+  label: string;
+  placeholder: string;
+  secret?: boolean;
+  optional?: boolean;
+}
+interface SetupClient {
+  channel: SetupChannel;
+  label: string;
+  title: string;
+  body: string;
+  guideUrl: string;
+  status: string;
+  fields: SetupField[];
+}
+
+const SETUP_CLIENTS: SetupClient[] = [
   {
-    title: 'Create a Feishu/Lark bot',
-    body: 'Open the Feishu or Lark developer console, create an internal app, then enable bot message receive and send permissions.',
-    command: 'https://open.feishu.cn/',
+    channel: 'feishu',
+    label: 'Feishu / Lark',
+    title: 'Connect Feishu/Lark to Claude Code',
+    body: 'Create a Feishu or Lark bot, paste its app credentials here, then Dardanus writes the local bridge config and wakes the daemon.',
+    guideUrl: 'https://open.feishu.cn/',
+    status: 'Ready',
+    fields: [
+      { key: 'appId', label: 'App ID', placeholder: 'cli_a...' },
+      { key: 'appSecret', label: 'App Secret', placeholder: 'Paste app secret', secret: true },
+      { key: 'verificationToken', label: 'Verification Token', placeholder: 'Paste event token', optional: true },
+      { key: 'encryptKey', label: 'Encrypt Key', placeholder: 'Optional encrypted event key', secret: true, optional: true },
+      { key: 'publicBaseUrl', label: 'Public Base URL', placeholder: 'https://feishu.hilbert-space.store', optional: true },
+    ],
   },
   {
-    title: 'Enable event subscription',
-    body: 'Subscribe to im.message.receive_v1 and set the request URL to your Dardanus Cloudflare tunnel webhook.',
-    command: 'https://feishu.hilbert-space.store/feishu/webhook',
+    channel: 'wechat',
+    label: 'WeChat',
+    title: 'Prepare WeChat Claude Code bridge',
+    body: 'Dardanus will keep the same Claude Code bridge shape. WeChat support is planned as a QR-login channel bundle, not an OpenClaw plugin dependency.',
+    guideUrl: 'https://github.com/Tencent/openclaw-weixin',
+    status: 'Planned',
+    fields: [
+      { key: 'displayName', label: 'Channel Name', placeholder: 'My WeChat bridge' },
+      { key: 'callbackUrl', label: 'Callback URL', placeholder: 'Optional local callback URL', optional: true },
+    ],
   },
   {
-    title: 'Save bridge secrets',
-    body: 'Run the setup script or fill the local config with your App ID, App Secret, verification token, and optional encrypt key.',
-    command: 'npm run setup',
-  },
-  {
-    title: 'Wake Dardanus',
-    body: 'Use Wake after setup. Dardanus starts the bridge daemon and tunnel, then switches from sleep to awake when both are healthy.',
-    command: 'Right click Dardanus -> Wake',
-  },
-  {
-    title: 'Next: QR IM channels',
-    body: 'WeChat and WeCom can join later through OpenClaw-style QR login adapters while reusing the same pet states.',
-    command: 'openclaw channels login --channel openclaw-weixin',
+    channel: 'wecom',
+    label: 'WeCom',
+    title: 'Prepare WeCom Claude Code bridge',
+    body: 'Dardanus will expose WeCom as a future enterprise IM channel for Claude Code sessions with a unified setup flow.',
+    guideUrl: 'https://github.com/WecomTeam/wecom-openclaw-plugin',
+    status: 'Planned',
+    fields: [
+      { key: 'displayName', label: 'Channel Name', placeholder: 'My WeCom bridge' },
+      { key: 'callbackUrl', label: 'Callback URL', placeholder: 'Optional enterprise callback URL', optional: true },
+    ],
   },
 ];
+const LOADING_FRAMES = ['[|] checking keys', '[/] writing config', '[-] waking bridge', '[\\] waiting for tunnel'];
 
 const appWindow = getCurrentWindow();
 const button = document.querySelector<HTMLElement>('#crab-button');
@@ -51,9 +84,23 @@ const setupPanel = document.querySelector<HTMLElement>('#setup-panel');
 const setupCount = document.querySelector<HTMLElement>('#setup-count');
 const setupTitle = document.querySelector<HTMLElement>('#setup-title');
 const setupBody = document.querySelector<HTMLElement>('#setup-body');
-const setupCommand = document.querySelector<HTMLElement>('#setup-command');
+const setupClientList = document.querySelector<HTMLElement>('#setup-client-list');
+const setupForm = document.querySelector<HTMLFormElement>('#setup-form');
+const setupLog = document.querySelector<HTMLElement>('#setup-log');
 
-if (!button || !panel || !menu || !appRoot || !setupPanel || !setupCount || !setupTitle || !setupBody || !setupCommand) {
+if (
+  !button ||
+  !panel ||
+  !menu ||
+  !appRoot ||
+  !setupPanel ||
+  !setupCount ||
+  !setupTitle ||
+  !setupBody ||
+  !setupClientList ||
+  !setupForm ||
+  !setupLog
+) {
   throw new Error('Crab UI did not mount');
 }
 
@@ -65,7 +112,9 @@ const setup = setupPanel;
 const setupStepCount = setupCount;
 const setupStepTitle = setupTitle;
 const setupStepBody = setupBody;
-const setupStepCommand = setupCommand;
+const setupClients = setupClientList;
+const setupFields = setupForm;
+const setupOutput = setupLog;
 const gestures = createGestureTracker();
 const drag = createPetDrag();
 const timedDisplay = createTimedPetDisplay();
@@ -75,7 +124,8 @@ let interactionTimer: number | undefined;
 let bubblingIntentTimer: number | undefined;
 let autoWakeInFlight = false;
 let lastAutoWakeAt = 0;
-let setupStepIndex = 0;
+let selectedSetupChannel: SetupChannel = 'feishu';
+let loadingTimer: number | undefined;
 
 function shouldAutoWake(snapshot: Awaited<ReturnType<typeof fetchBridgeSnapshot>>): boolean {
   return snapshot.status.bridge !== 'online' || snapshot.status.tunnel !== 'online';
@@ -155,19 +205,83 @@ async function setPetWindowSize(size: { width: number; height: number }): Promis
   await appWindow.setSize(new LogicalSize(size.width, size.height)).catch(() => undefined);
 }
 
-function renderSetupStep(): void {
-  const step = SETUP_STEPS[setupStepIndex];
-  setupStepCount.textContent = `Step ${setupStepIndex + 1} of ${SETUP_STEPS.length}`;
-  setupStepTitle.textContent = step.title;
-  setupStepBody.textContent = step.body;
-  setupStepCommand.textContent = step.command;
+function selectedSetupClient(): SetupClient {
+  return SETUP_CLIENTS.find((client) => client.channel === selectedSetupChannel) ?? SETUP_CLIENTS[0];
+}
+
+function renderSetupGuide(): void {
+  const client = selectedSetupClient();
+  setupStepCount.textContent = `Dardanus Claude Code bridge / ${client.status}`;
+  setupStepTitle.textContent = client.title;
+  setupStepBody.textContent = client.body;
+  setupClients.replaceChildren(...SETUP_CLIENTS.map(renderSetupClientButton));
+  setupFields.replaceChildren(...client.fields.map(renderSetupField));
+  setupOutput.textContent =
+    client.channel === 'feishu'
+      ? `Webhook path: /feishu/webhook\nPaste credentials copied from the developer console.`
+      : `This reserves a ${client.label} channel profile for the future Claude Code bundle.`;
+}
+
+function renderSetupClientButton(client: SetupClient): HTMLElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.dataset.setupClient = client.channel;
+  button.dataset.selected = String(client.channel === selectedSetupChannel);
+  button.textContent = client.label;
+  button.setAttribute('role', 'option');
+  button.setAttribute('aria-selected', String(client.channel === selectedSetupChannel));
+  return button;
+}
+
+function renderSetupField(field: SetupField): HTMLElement {
+  const label = document.createElement('label');
+  label.className = 'setup-field';
+  const caption = document.createElement('span');
+  caption.textContent = `${field.label}${field.optional ? ' (optional)' : ''}`;
+  const input = document.createElement('input');
+  input.name = field.key;
+  input.type = field.secret ? 'password' : 'text';
+  input.placeholder = field.placeholder;
+  input.autocomplete = 'off';
+  if (!field.optional) {
+    input.required = true;
+  }
+  label.append(caption, input);
+  return label;
+}
+
+function collectSetupConfig(): Record<string, string> {
+  const formData = new FormData(setupFields);
+  const config: Record<string, string> = { channel: selectedSetupChannel };
+  formData.forEach((value, key) => {
+    if (typeof value === 'string' && value.trim()) {
+      config[key] = value.trim();
+    }
+  });
+  return config;
+}
+
+function startSetupLoading(): void {
+  let frame = 0;
+  window.clearInterval(loadingTimer);
+  loadingTimer = window.setInterval(() => {
+    setupOutput.textContent = `${LOADING_FRAMES[frame % LOADING_FRAMES.length]}\nPreparing ${selectedSetupClient().label} for Claude Code...`;
+    frame += 1;
+  }, 220);
+}
+
+function stopSetupLoading(message: string): void {
+  if (loadingTimer !== undefined) {
+    window.clearInterval(loadingTimer);
+    loadingTimer = undefined;
+  }
+  setupOutput.textContent = message;
 }
 
 async function showSetupGuide(): Promise<void> {
   hideCrabMenu();
   cancelBubblingIntent();
-  setupStepIndex = 0;
-  renderSetupStep();
+  renderSetupGuide();
   root.dataset.setup = 'true';
   setup.dataset.visible = 'true';
   setup.setAttribute('aria-hidden', 'false');
@@ -192,14 +306,29 @@ function maybeShowFirstRunSetup(): void {
 }
 
 async function runSetupAction(action: string | undefined): Promise<void> {
-  if (action === 'previous') {
-    setupStepIndex = Math.max(0, setupStepIndex - 1);
-    renderSetupStep();
+  if (action === 'open-guide') {
+    await openSetupGuide(selectedSetupClient().guideUrl).catch((error) => {
+      stopSetupLoading(error instanceof Error ? error.message : 'Failed to open guide');
+    });
     return;
   }
-  if (action === 'next') {
-    setupStepIndex = Math.min(SETUP_STEPS.length - 1, setupStepIndex + 1);
-    renderSetupStep();
+  if (action === 'save') {
+    if (!setupFields.reportValidity()) {
+      return;
+    }
+    startSetupLoading();
+    try {
+      const result = await saveSetupConfig(collectSetupConfig());
+      if (selectedSetupChannel === 'feishu') {
+        await startDaemon();
+        stopSetupLoading(`${result}\nBridge wake requested. Dardanus will switch state when bridge and tunnel are healthy.`);
+      } else {
+        stopSetupLoading(`${result}\n${selectedSetupClient().label} is saved as a planned Claude Code channel.`);
+      }
+      await refresh();
+    } catch (error) {
+      stopSetupLoading(error instanceof Error ? error.message : 'Setup failed');
+    }
     return;
   }
   if (action === 'done') {
@@ -298,6 +427,12 @@ setup.addEventListener('click', (event) => {
   if (!(target instanceof HTMLElement)) {
     return;
   }
+  const setupClient = target.dataset.setupClient as SetupChannel | undefined;
+  if (setupClient !== undefined) {
+    selectedSetupChannel = setupClient;
+    renderSetupGuide();
+    return;
+  }
   void runSetupAction(target.dataset.setupAction);
 });
 
@@ -334,16 +469,16 @@ crabButton.addEventListener('pointermove', (event) => {
 
 crabButton.addEventListener('pointerup', () => {
   startBubblingIntent();
-  drag.pointerUp();
+  void drag.pointerUp().catch(() => undefined);
 });
 
 crabButton.addEventListener('pointercancel', () => {
-  drag.pointerUp();
+  void drag.pointerUp().catch(() => undefined);
 });
 
 crabButton.addEventListener('pointerleave', (event) => {
   if (event.buttons === 0) {
-    drag.pointerUp();
+    void drag.pointerUp().catch(() => undefined);
   }
   cancelBubblingIntent();
   if (interaction === 'bubbling') {

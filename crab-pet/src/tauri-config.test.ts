@@ -107,6 +107,9 @@ test('right click opens a pet menu with wake, setup, reload, and quit actions', 
   assert.match(app, /showSetupGuide/);
   assert.match(app, /ONBOARDING_KEY/);
   assert.match(app, /setPetWindowSize/);
+  assert.match(app, /SETUP_CLIENTS/);
+  assert.match(app, /saveSetupConfig/);
+  assert.match(app, /openSetupGuide/);
   assert.match(app, /showTransientBubble/);
   assert.match(app, /wakeBridgeFromSleep/);
   assert.match(app, /contextmenu/);
@@ -126,6 +129,28 @@ test('Tauri exposes a quit command for the pet menu', () => {
   assert.match(commands, /app\.exit\(0\)/);
   assert.match(main, /commands::quit_app/);
   assert.match(tauri, /quitApp/);
+});
+
+test('setup guide renders IM choices and form controls', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+  const tauri = readFileSync(new URL('../src/tauri.ts', import.meta.url), 'utf8');
+  const commands = readFileSync(new URL('../src-tauri/src/commands.rs', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../src-tauri/src/main.rs', import.meta.url), 'utf8');
+
+  assert.match(html, /id="setup-client-list"/);
+  assert.match(html, /id="setup-form"/);
+  assert.match(html, /id="setup-log"/);
+  assert.match(app, /channel: 'feishu'/);
+  assert.match(app, /channel: 'wechat'/);
+  assert.match(app, /channel: 'wecom'/);
+  assert.match(app, /Dardanus will keep the same Claude Code bridge shape/);
+  assert.match(tauri, /saveSetupConfig/);
+  assert.match(tauri, /openSetupGuide/);
+  assert.match(commands, /save_setup_config/);
+  assert.match(commands, /open_setup_guide/);
+  assert.match(main, /commands::save_setup_config/);
+  assert.match(main, /commands::open_setup_guide/);
 });
 
 test('tauri npm script pins macOS rust and clang tools for release builds', () => {

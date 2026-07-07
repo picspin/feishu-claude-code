@@ -35,12 +35,7 @@ export function clampPetDrag(input: {
     y: clamp(input.startWindow.y + deltaY, minY, maxY),
   };
 
-  return snapPetToMagneticTargets({
-    position: clampedPosition,
-    windowSize: input.windowSize,
-    workArea: input.workArea,
-    threshold: MAGNET_THRESHOLD_PX,
-  });
+  return clampedPosition;
 }
 
 export function clampHorizontalDockDrag(input: {
@@ -89,7 +84,7 @@ export const shouldContinueHorizontalDrag = shouldContinueDrag;
 export function createPetDrag(): {
   pointerDown: (event: PointerEvent) => Promise<void>;
   pointerMove: (event: PointerEvent) => Promise<void>;
-  pointerUp: () => void;
+  pointerUp: () => Promise<void>;
   consumeDragClick: () => boolean;
 } {
   const appWindow = getCurrentWindow();
@@ -100,6 +95,7 @@ export function createPetDrag(): {
   let scaleFactor = 1;
   let dragging = false;
   let draggedSincePointerDown = false;
+  let lastPosition: Point | undefined;
 
   async function pointerDown(event: PointerEvent): Promise<void> {
     if (event.button !== 0) {
@@ -110,6 +106,7 @@ export function createPetDrag(): {
     startPointer = { x: event.clientX, y: event.clientY };
     dragging = false;
     draggedSincePointerDown = false;
+    lastPosition = undefined;
 
     const [position, size, nextScaleFactor, monitor] = await Promise.all([
       appWindow.outerPosition(),
@@ -134,7 +131,7 @@ export function createPetDrag(): {
 
   async function pointerMove(event: PointerEvent): Promise<void> {
     if (!shouldContinueDrag(event.buttons)) {
-      pointerUp();
+      await pointerUp();
       return;
     }
 
@@ -161,14 +158,28 @@ export function createPetDrag(): {
       windowSize,
       workArea,
     });
+    lastPosition = nextPosition;
     await appWindow.setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
   }
 
-  function pointerUp(): void {
+  async function pointerUp(): Promise<void> {
+    if (dragging && lastPosition !== undefined && windowSize !== undefined && workArea !== undefined) {
+      const nextPosition = snapPetToMagneticTargets({
+        position: lastPosition,
+        windowSize,
+        workArea,
+        threshold: MAGNET_THRESHOLD_PX,
+      });
+      if (nextPosition.x !== lastPosition.x || nextPosition.y !== lastPosition.y) {
+        await appWindow.setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
+      }
+    }
+
     startPointer = undefined;
     startWindow = undefined;
     windowSize = undefined;
     workArea = undefined;
+    lastPosition = undefined;
     dragging = false;
   }
 

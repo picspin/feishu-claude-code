@@ -15,6 +15,17 @@ export interface Config {
   appSecret?: string;
   encryptKey?: string;
   verificationToken?: string;
+  activeChannel?: 'feishu' | 'wechat' | 'wecom';
+  channels?: Record<
+    string,
+    {
+      status?: 'planned' | 'ready';
+      bridge?: 'claude-code';
+      login?: 'qr' | 'webhook';
+      displayName?: string;
+      callbackUrl?: string;
+    }
+  >;
 }
 
 const defaultConfig: Config = {

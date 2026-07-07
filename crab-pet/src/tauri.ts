@@ -34,3 +34,11 @@ export async function quitApp(): Promise<void> {
 export async function positionNearDock(): Promise<void> {
   await invoke<void>('position_near_dock');
 }
+
+export async function openSetupGuide(url: string): Promise<void> {
+  await invoke<void>('open_setup_guide', { url });
+}
+
+export async function saveSetupConfig(config: Record<string, string>): Promise<string> {
+  return invoke<string>('save_setup_config', { config });
+}

@@ -4,8 +4,8 @@
   background: transparent;
   --pet-window-width: 160px;
   --pet-window-height: 124px;
-  --setup-window-width: 360px;
-  --setup-window-height: 396px;
+  --setup-window-width: 460px;
+  --setup-window-height: 560px;
   --crab-art: url("/src/assets/crab-neutral.png");
 }
 
@@ -149,7 +149,7 @@ body,
   z-index: 10;
   display: none;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   padding: 16px;
   border: 1px solid rgb(255 255 255 / 0.22);
   border-radius: 8px;
@@ -161,6 +161,11 @@ body,
 
 .setup-panel[data-visible="true"] {
   display: flex;
+}
+
+.setup-header {
+  display: grid;
+  gap: 6px;
 }
 
 .setup-count {
@@ -184,8 +189,62 @@ body,
   line-height: 1.45;
 }
 
-.setup-panel code {
-  min-height: 36px;
+.setup-client-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.setup-client-list button {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.08);
+  color: white;
+  font: inherit;
+  font-size: 12px;
+}
+
+.setup-client-list button[data-selected="true"] {
+  border-color: rgb(111 207 255 / 0.72);
+  background: rgb(63 169 245 / 0.22);
+}
+
+.setup-form {
+  display: grid;
+  gap: 8px;
+}
+
+.setup-field {
+  display: grid;
+  gap: 4px;
+  color: rgb(203 215 224);
+  font-size: 11px;
+}
+
+.setup-field input {
+  width: 100%;
+  height: 30px;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.08);
+  color: white;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 12px;
+  padding: 0 8px;
+}
+
+.setup-field input:focus-visible,
+.setup-client-list button:focus-visible {
+  border-color: rgb(111 207 255 / 0.86);
+  outline: none;
+}
+
+.setup-log {
+  min-height: 52px;
+  margin: 0;
   padding: 8px;
   border: 1px solid rgb(255 255 255 / 0.14);
   border-radius: 6px;
@@ -196,6 +255,7 @@ body,
   line-height: 1.35;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  overflow: auto;
 }
 
 .setup-actions {

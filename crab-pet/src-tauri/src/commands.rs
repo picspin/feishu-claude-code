@@ -27,3 +27,15 @@ pub fn quit_app(app: tauri::AppHandle) {
 pub fn position_near_dock(window: tauri::WebviewWindow) -> Result<(), String> {
     crate::window::position_near_dock(window)
 }
+
+#[tauri::command]
+pub fn open_setup_guide(url: String) -> Result<(), String> {
+    crate::setup::open_setup_guide(&url)
+}
+
+#[tauri::command]
+pub fn save_setup_config(
+    config: std::collections::HashMap<String, String>,
+) -> Result<String, String> {
+    crate::setup::save_setup_config(config)
+}

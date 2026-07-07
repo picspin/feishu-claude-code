@@ -97,7 +97,7 @@ State mapping / 状态映射：
 - `awake`: bridge and tunnel are online; default idle awake state / bridge 与 tunnel 在线；默认醒着状态
 - `wave-claw`: one-shot wave every minute while awake, lasting about 5 seconds / 醒着时每分钟挥钳一次，约 5 秒
 - `idle-shrink`: after about 5 minutes awake without higher-priority activity / 醒着空闲约 5 分钟后缩壳休息
-- `crawl`: Claude is thinking/streaming, or a double-click interaction; the window crawls horizontally at about 16 px/s and reverses at screen edges / Claude 思考或输出中，或双击互动；窗口以约 16 px/s 横向爬行，触边反向
+- `crawl`: Claude is thinking/streaming, or a double-click interaction; the window crawls left at about 16 px/s and wraps back from the left edge to the right edge / Claude 思考或输出中，或双击互动；窗口以约 16 px/s 向左爬行，到左侧边缘后从右侧穿越回来
 - `wink`: recent non-text Feishu input such as image, audio, media, or file / 最近收到图片、语音、media 或文件等非文本消息
 - `bubbling`: reply completed, single click, or hover/hold intent for recent activity / 回复完成、单击或悬停意图触发吐泡
 - `shrink`: more than three clicks in a burst; holds for about 10 seconds / 快速点击超过三次触发缩壳，保持约 10 秒
@@ -105,21 +105,15 @@ State mapping / 状态映射：
 Interaction notes / 交互说明：
 
 - Right click Dardanus to open its menu: `Wake` relaunches the local bridge daemon, `Setup` opens the onboarding guide, `Reload` snaps near the Dock and refreshes status, and `Quit` exits the pet / 右键 Dardanus 会打开菜单：`Wake` 重新拉起本地 bridge daemon，`Setup` 打开入门导览，`Reload` 贴近 Dock 并刷新状态，`Quit` 退出桌宠
-- Press and drag on the crab to move it anywhere on screen; releasing near a screen edge or Dock band magnetically snaps it into place / 按住寄居蟹可在屏幕任意位置拖动；释放到屏幕边缘或 Dock 区域附近时会磁吸贴靠
-- First-run onboarding walks through creating a Feishu/Lark bot, enabling `im.message.receive_v1`, setting the webhook URL, saving local bridge secrets, and using `Wake` / 首次运行导览会帮助完成 Feishu/Lark 机器人创建、订阅 `im.message.receive_v1`、配置 webhook、保存本地 bridge 密钥并使用 `Wake`
-- Future IM adapters can reuse the same pet state model after Feishu, including WeChat and WeCom QR-login channels via OpenClaw / 后续 WeChat 与 WeCom 扫码登录入口可以通过 OpenClaw 适配器复用同一套桌宠状态模型
+- Press and drag on the crab to move it anywhere on screen; it stays free while dragging and only snaps lightly after release near a screen edge or Dock band / 按住寄居蟹可在屏幕任意位置拖动；拖动过程中保持自由，只有松手后靠近屏幕边缘或 Dock 区域才轻量磁吸
+- First-run onboarding lets users choose an IM client, open the corresponding registration guide, paste copied keys, save local Claude Code bridge config, and wake the bridge / 首次运行导览允许用户选择 IM 客户端、打开对应注册页面、粘贴复制好的 key、写入本地 Claude Code bridge 配置并唤醒桥接
+- Future IM adapters can reuse the same pet state model after Feishu, including WeChat and WeCom QR-login channel bundles for Claude Code / 后续 WeChat 与 WeCom 扫码入口会作为 Claude Code 的 IM channel bundle 复用同一套桌宠状态模型
 
 Future IM adapters / 后续 IM 适配：
 
-- WeChat reference: [Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin), which provides an OpenClaw WeChat channel with QR login / WeChat 参考：[Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin)，提供带扫码登录的 OpenClaw 微信通道
-- WeCom reference: [WecomTeam/wecom-openclaw-plugin](https://github.com/WecomTeam/wecom-openclaw-plugin), an OpenClaw plugin path for enterprise WeCom workflows / WeCom 参考：[WecomTeam/wecom-openclaw-plugin](https://github.com/WecomTeam/wecom-openclaw-plugin)，提供企业微信工作流的 OpenClaw 插件路径
-- Example WeChat bootstrap commands / WeChat 预期初始化命令示例：
-
-```bash
-npx -y @tencent-weixin/openclaw-weixin-cli install
-openclaw plugins install "@tencent-weixin/openclaw-weixin"
-openclaw channels login --channel openclaw-weixin
-```
+- WeChat reference: [Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin), used as QR-login channel design reference rather than a required runtime dependency / WeChat 参考：[Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin)，作为扫码登录通道设计参考，而不是必需运行时依赖
+- WeCom reference: [WecomTeam/wecom-openclaw-plugin](https://github.com/WecomTeam/wecom-openclaw-plugin), used as enterprise IM workflow reference for a future Dardanus Claude Code channel / WeCom 参考：[WecomTeam/wecom-openclaw-plugin](https://github.com/WecomTeam/wecom-openclaw-plugin)，作为未来 Dardanus Claude Code 企业 IM 通道的工作流参考
+- Current Setup writes working Feishu/Lark bridge credentials today and stores WeChat/WeCom as planned channel profiles until their Claude Code bundles land / 当前 Setup 会写入可用的 Feishu/Lark bridge 凭据；WeChat/WeCom 会先保存为 planned channel profile，等待后续 Claude Code bundle 落地
 
 Build the macOS app / 构建 macOS App：
 
