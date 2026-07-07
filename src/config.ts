@@ -21,9 +21,13 @@ export interface Config {
     {
       status?: 'planned' | 'ready';
       bridge?: 'claude-code';
-      login?: 'qr' | 'webhook';
+      login?: 'qr' | 'webhook' | 'long_connection';
       displayName?: string;
       callbackUrl?: string;
+      botId?: string;
+      secret?: string;
+      websocketUrl?: string;
+      heartbeatSeconds?: number;
     }
   >;
 }

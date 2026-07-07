@@ -84,9 +84,16 @@ mod tests {
     }
 
     #[test]
+    fn accepts_daemon_status_with_running_wecom_long_connection() {
+        assert!(daemon_status_has_tunnel(
+            "Running\ncloudflared tunnel: not running\nwecom long connection: running"
+        ));
+    }
+
+    #[test]
     fn rejects_daemon_status_with_offline_tunnel() {
         assert!(!daemon_status_has_tunnel(
-            "Running\ncloudflared tunnel: not running"
+            "Running\ncloudflared tunnel: not running\nwecom long connection: not configured"
         ));
     }
 }
@@ -142,7 +149,7 @@ fn daemon_stack_is_healthy() -> bool {
 fn daemon_status_has_tunnel(status: &str) -> bool {
     status
         .lines()
-        .any(|line| line.trim() == "cloudflared tunnel: running")
+        .any(|line| matches!(line.trim(), "cloudflared tunnel: running" | "wecom long connection: running"))
 }
 
 fn wait_for_daemon_stack(timeout: Duration) -> Result<(), String> {

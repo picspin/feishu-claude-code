@@ -34,7 +34,8 @@ pub fn save_setup_config(config: HashMap<String, String>) -> Result<String, Stri
 
     match channel {
         "feishu" => save_feishu_config(&mut root, &config)?,
-        "wechat" | "wecom" => save_future_channel_config(&mut root, channel, &config)?,
+        "wechat" => save_future_channel_config(&mut root, channel, &config)?,
+        "wecom" => save_wecom_config(&mut root, &config)?,
         _ => return Err("Unsupported IM channel".into()),
     }
 
@@ -84,6 +85,36 @@ fn save_future_channel_config(
     }
     root["channels"][channel] = Value::Object(channel_config);
     set_string(root, "activeChannel", channel);
+    Ok(())
+}
+
+fn save_wecom_config(root: &mut Value, config: &HashMap<String, String>) -> Result<(), String> {
+    let mut channel_config = Map::new();
+    channel_config.insert("status".into(), json!("ready"));
+    channel_config.insert("bridge".into(), json!("claude-code"));
+    channel_config.insert("login".into(), json!("long_connection"));
+    channel_config.insert("displayName".into(), json!("企业微信长连接"));
+    channel_config.insert("botId".into(), json!(required(config, "botId")?));
+    channel_config.insert("secret".into(), json!(required(config, "secret")?));
+    channel_config.insert(
+        "websocketUrl".into(),
+        json!(optional(config.get("websocketUrl")).unwrap_or("wss://openws.work.weixin.qq.com")),
+    );
+    if let Some(value) = optional(config.get("heartbeatSeconds")) {
+        let heartbeat_seconds = value
+            .parse::<u64>()
+            .map_err(|_| "heartbeatSeconds must be a positive integer".to_string())?;
+        if heartbeat_seconds == 0 {
+            return Err("heartbeatSeconds must be a positive integer".into());
+        }
+        channel_config.insert("heartbeatSeconds".into(), json!(heartbeat_seconds));
+    }
+
+    if !root.get("channels").is_some_and(Value::is_object) {
+        root["channels"] = Value::Object(Map::new());
+    }
+    root["channels"]["wecom"] = Value::Object(channel_config);
+    set_string(root, "activeChannel", "wecom");
     Ok(())
 }
 
@@ -151,6 +182,7 @@ fn is_allowed_setup_url(url: &str) -> bool {
         "https://github.com/picspin/feishu-claude-code",
         "https://github.com/Tencent/openclaw-weixin",
         "https://github.com/WecomTeam/wecom-openclaw-plugin",
+        "https://developer.work.weixin.qq.com/",
     ]
     .iter()
     .any(|prefix| url.starts_with(prefix))
@@ -163,6 +195,9 @@ mod tests {
     #[test]
     fn allows_only_known_setup_urls() {
         assert!(is_allowed_setup_url("https://open.feishu.cn/app"));
+        assert!(is_allowed_setup_url(
+            "https://developer.work.weixin.qq.com/document/path/101463"
+        ));
         assert!(is_allowed_setup_url(
             "https://github.com/picspin/feishu-claude-code"
         ));

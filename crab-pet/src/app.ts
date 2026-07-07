@@ -163,41 +163,61 @@ const SETUP_CLIENTS: SetupClient[] = [
     channel: 'wecom',
     label: { zh: '企业微信', en: 'WeCom' },
     intro: {
-      zh: '为后续 WeCom Claude Code enterprise channel bundle 预留企业 IM 路线。',
-      en: 'Prepare the future WeCom Claude Code enterprise IM channel bundle.',
+      zh: '通过企业微信智能机器人长连接接入本地 Claude Code bridge。',
+      en: 'Connect a WeCom intelligent bot long connection to the local Claude Code bridge.',
     },
-    badge: { zh: '规划中', en: 'Planned' },
-    guideUrl: 'https://github.com/WecomTeam/wecom-openclaw-plugin',
+    badge: { zh: '长连接', en: 'Long connection' },
+    guideUrl: 'https://developer.work.weixin.qq.com/document/path/101463',
     steps: [
       {
-        title: { zh: '确认企业微信路线', en: 'Review WeCom route' },
+        title: { zh: '打开智能机器人文档', en: 'Open intelligent bot docs' },
         body: {
-          zh: '企业微信会作为 Dardanus 面向 Claude Code 的企业 IM 通道。当前先参考企业工作流与扫码授权形态。',
-          en: 'WeCom will be an enterprise IM channel for Dardanus to Claude Code. For now, review enterprise workflow and QR authorization patterns.',
+          zh: '进入企业微信智能机器人长连接文档，并在企业微信管理后台创建或打开一个智能机器人。',
+          en: 'Open the WeCom intelligent bot long-connection docs, then create or open an intelligent bot in the WeCom admin console.',
         },
-        guideUrl: 'https://github.com/WecomTeam/wecom-openclaw-plugin',
-        action: { zh: '打开参考页面', en: 'Open reference' },
+        guideUrl: 'https://developer.work.weixin.qq.com/document/path/101463',
+        action: { zh: '打开企业微信文档', en: 'Open WeCom docs' },
       },
       {
-        title: { zh: '预留企业通道档案', en: 'Reserve enterprise profile' },
+        title: { zh: '开启长连接 API 模式', en: 'Enable long-connection API mode' },
         body: {
-          zh: '保存企业微信通道名称和可选回调地址。后续 bundle 完成后会继续在这里引导扫码、授权与桥接启动。',
-          en: 'Save a WeCom channel name and optional callback URL. After the bundle lands, this guide will continue QR, authorization, and bridge startup.',
+          zh: '在机器人配置页启用 API 模式，并选择“长连接”。该模式无需公网回调地址，但同一 BotID 同时只能保持一个有效连接。',
+          en: 'Enable API mode on the bot configuration page and choose long connection. This does not need a public callback URL, but one BotID can only keep one active connection at a time.',
+        },
+        action: { zh: '我已开启长连接', en: 'Long connection is enabled' },
+      },
+      {
+        title: { zh: '粘贴 BotID 与 Secret', en: 'Paste BotID and Secret' },
+        body: {
+          zh: '复制企业微信后台展示的 BotID 和长连接专用 Secret。Dardanus 会用它们向 wss://openws.work.weixin.qq.com 订阅消息。',
+          en: 'Copy the BotID and long-connection Secret shown in WeCom. Dardanus will subscribe to wss://openws.work.weixin.qq.com with them.',
         },
         fields: [
           {
-            key: 'displayName',
-            label: { zh: '通道名称', en: 'Channel Name' },
-            placeholder: { zh: '我的企业微信桥接', en: 'My WeCom bridge' },
+            key: 'botId',
+            label: { zh: 'BotID', en: 'BotID' },
+            placeholder: { zh: '企业微信智能机器人 BotID', en: 'WeCom intelligent bot BotID' },
           },
           {
-            key: 'callbackUrl',
-            label: { zh: '回调地址', en: 'Callback URL' },
-            placeholder: { zh: '可选：企业回调地址', en: 'Optional enterprise callback URL' },
+            key: 'secret',
+            label: { zh: 'Secret', en: 'Secret' },
+            placeholder: { zh: '长连接专用 Secret', en: 'Long-connection Secret' },
+            secret: true,
+          },
+          {
+            key: 'websocketUrl',
+            label: { zh: 'WebSocket 地址', en: 'WebSocket URL' },
+            placeholder: { zh: 'wss://openws.work.weixin.qq.com', en: 'wss://openws.work.weixin.qq.com' },
+            optional: true,
+          },
+          {
+            key: 'heartbeatSeconds',
+            label: { zh: '心跳间隔秒数', en: 'Heartbeat seconds' },
+            placeholder: { zh: '30', en: '30' },
             optional: true,
           },
         ],
-        action: { zh: '保存预留档案', en: 'Save profile' },
+        action: { zh: '保存并启动长连接', en: 'Save and start long connection' },
       },
     ],
   },
@@ -598,7 +618,7 @@ async function runSetupAction(action: string | undefined): Promise<void> {
     startSetupLoading();
     try {
       const result = await saveSetupConfig(collectSetupConfig());
-      if (selectedSetupChannel === 'feishu') {
+      if (selectedSetupChannel === 'feishu' || selectedSetupChannel === 'wecom') {
         await startDaemon();
         stopSetupLoading(`${result}\n${text(SETUP_COPY.loadingDone)}`);
       } else {

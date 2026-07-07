@@ -12,6 +12,7 @@ import { buildPrompt } from './feishu/prompt.js';
 import { downloadMessageResource, sendTextMessage } from './feishu/send.js';
 import { createWebhookServer, type FeishuIncomingMessage } from './feishu/webhook.js';
 import { claudeQuery } from './claude/provider.js';
+import { getWeComBridgeState, getWeComClaudeState, weComConfigError } from './wecom/runtime.js';
 
 const BRIDGE_VERSION = '0.1.0';
 
@@ -93,7 +94,8 @@ async function runStart(): Promise<void> {
     version: BRIDGE_VERSION,
     getBridgeState: () => (isBridgeReady(config) ? 'online' : 'offline'),
     getBridgeError: () => bridgeReadinessError(config),
-    getTunnelState: detectTunnelState,
+    getTunnelState: () => (config.activeChannel === 'wecom' ? 'online' : detectTunnelState()),
+    getClaudeState: () => (config.activeChannel === 'wecom' ? getWeComClaudeState() : undefined),
   });
 
   const server = createWebhookServer({
@@ -209,6 +211,13 @@ function isBridgeReady(config: ReturnType<typeof loadConfig>): boolean {
 }
 
 function bridgeReadinessError(config: ReturnType<typeof loadConfig>): string | null {
+  if (config.activeChannel === 'wecom') {
+    const configError = weComConfigError(config);
+    if (configError) {
+      return configError;
+    }
+    return getWeComBridgeState() === 'online' ? null : 'WeCom long connection is offline';
+  }
   if (!config.appId || !config.appSecret) {
     return 'Feishu app credentials are missing';
   }

@@ -35,6 +35,7 @@ export function createBridgeStatusTracker(options: {
   getBridgeState: () => BridgeOnlineState;
   getBridgeError?: () => string | null;
   getTunnelState: () => BridgeOnlineState;
+  getClaudeState?: () => ClaudeRuntimeState | undefined;
   now?: () => Date;
 }): BridgeStatusTracker {
   const now = options.now ?? (() => new Date());
@@ -62,10 +63,11 @@ export function createBridgeStatusTracker(options: {
     },
     getStatus() {
       const bridge = options.getBridgeState();
+      const runtimeClaude = options.getClaudeState?.();
       return {
         bridge,
         tunnel: options.getTunnelState(),
-        claude,
+        claude: runtimeClaude ?? claude,
         lastMessageType,
         lastEventAt,
         lastError: bridge === 'online' ? lastError : options.getBridgeError?.() ?? lastError,

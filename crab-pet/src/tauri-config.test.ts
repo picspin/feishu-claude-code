@@ -150,6 +150,9 @@ test('setup guide renders IM choices and form controls', () => {
   assert.match(app, /channel: 'wecom'/);
   assert.match(app, /type SetupLanguage = 'zh' \| 'en'/);
   assert.match(app, /打开开发者后台/);
+  assert.match(app, /智能机器人长连接/);
+  assert.match(app, /botId/);
+  assert.match(app, /secret/);
   assert.match(app, /Copy app credentials/);
   assert.match(app, /Dardanus will coach you through Claude Code bridge setup/);
   assert.match(tauri, /saveSetupConfig/);
