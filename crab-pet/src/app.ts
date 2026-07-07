@@ -15,65 +15,215 @@ const PET_WINDOW_SIZE = { width: 160, height: 124 };
 const SETUP_WINDOW_SIZE = { width: 460, height: 560 };
 const ONBOARDING_KEY = 'dardanus-onboarding-seen-v1';
 type SetupChannel = 'feishu' | 'wechat' | 'wecom';
+type SetupLanguage = 'zh' | 'en';
+type SetupView = 'choose' | 'coach' | 'loading';
+type LocalizedText = Record<SetupLanguage, string>;
 interface SetupField {
   key: string;
-  label: string;
-  placeholder: string;
+  label: LocalizedText;
+  placeholder: LocalizedText;
   secret?: boolean;
   optional?: boolean;
 }
+interface SetupStep {
+  title: LocalizedText;
+  body: LocalizedText;
+  guideUrl?: string;
+  action: LocalizedText;
+  fields?: SetupField[];
+}
 interface SetupClient {
   channel: SetupChannel;
-  label: string;
-  title: string;
-  body: string;
+  label: LocalizedText;
+  intro: LocalizedText;
+  badge: LocalizedText;
   guideUrl: string;
-  status: string;
-  fields: SetupField[];
+  steps: SetupStep[];
 }
 
 const SETUP_CLIENTS: SetupClient[] = [
   {
     channel: 'feishu',
-    label: 'Feishu / Lark',
-    title: 'Connect Feishu/Lark to Claude Code',
-    body: 'Create a Feishu or Lark bot, paste its app credentials here, then Dardanus writes the local bridge config and wakes the daemon.',
+    label: { zh: '飞书 / Lark', en: 'Feishu / Lark' },
+    intro: {
+      zh: '连接当前可用的 Feishu/Lark 到本地 Claude Code bridge。',
+      en: 'Connect the currently available Feishu/Lark path to the local Claude Code bridge.',
+    },
+    badge: { zh: '当前可用', en: 'Available now' },
     guideUrl: 'https://open.feishu.cn/',
-    status: 'Ready',
-    fields: [
-      { key: 'appId', label: 'App ID', placeholder: 'cli_a...' },
-      { key: 'appSecret', label: 'App Secret', placeholder: 'Paste app secret', secret: true },
-      { key: 'verificationToken', label: 'Verification Token', placeholder: 'Paste event token', optional: true },
-      { key: 'encryptKey', label: 'Encrypt Key', placeholder: 'Optional encrypted event key', secret: true, optional: true },
-      { key: 'publicBaseUrl', label: 'Public Base URL', placeholder: 'https://feishu.hilbert-space.store', optional: true },
+    steps: [
+      {
+        title: { zh: '打开开发者后台', en: 'Open developer console' },
+        body: {
+          zh: '在飞书或 Lark 开放平台创建企业自建应用，并进入应用详情页。',
+          en: 'Create an internal app in the Feishu or Lark developer console and open its app detail page.',
+        },
+        guideUrl: 'https://open.feishu.cn/',
+        action: { zh: '打开飞书后台', en: 'Open Feishu console' },
+      },
+      {
+        title: { zh: '启用机器人能力', en: 'Enable bot capability' },
+        body: {
+          zh: '在应用能力中添加机器人，并授予接收消息、发送消息相关权限；发布或安装到你的测试企业。',
+          en: 'Add the bot capability, grant message receive/send permissions, then publish or install it to your test tenant.',
+        },
+        action: { zh: '我已启用机器人', en: 'Bot is enabled' },
+      },
+      {
+        title: { zh: '配置事件订阅', en: 'Configure event subscription' },
+        body: {
+          zh: '进入事件订阅，订阅 im.message.receive_v1。回调地址使用 Cloudflare tunnel 的公开地址加 /feishu/webhook。',
+          en: 'Open event subscription and subscribe to im.message.receive_v1. Use your Cloudflare tunnel public URL plus /feishu/webhook.',
+        },
+        fields: [
+          {
+            key: 'publicBaseUrl',
+            label: { zh: '公开 Base URL', en: 'Public Base URL' },
+            placeholder: { zh: 'https://feishu.hilbert-space.store', en: 'https://feishu.hilbert-space.store' },
+            optional: true,
+          },
+        ],
+        action: { zh: '我已配置回调', en: 'Callback is configured' },
+      },
+      {
+        title: { zh: '复制应用密钥', en: 'Copy app credentials' },
+        body: {
+          zh: '在“凭证与基础信息”复制 App ID 和 App Secret；在事件订阅页复制 Verification Token，若开启加密则复制 Encrypt Key。',
+          en: 'Copy App ID and App Secret from credentials, then copy Verification Token from event subscription. Add Encrypt Key if encryption is enabled.',
+        },
+        fields: [
+          { key: 'appId', label: { zh: 'App ID', en: 'App ID' }, placeholder: { zh: 'cli_a...', en: 'cli_a...' } },
+          {
+            key: 'appSecret',
+            label: { zh: 'App Secret', en: 'App Secret' },
+            placeholder: { zh: '粘贴 App Secret', en: 'Paste app secret' },
+            secret: true,
+          },
+          {
+            key: 'verificationToken',
+            label: { zh: 'Verification Token', en: 'Verification Token' },
+            placeholder: { zh: '粘贴事件 token', en: 'Paste event token' },
+            optional: true,
+          },
+          {
+            key: 'encryptKey',
+            label: { zh: 'Encrypt Key', en: 'Encrypt Key' },
+            placeholder: { zh: '可选：事件加密 key', en: 'Optional encrypted event key' },
+            secret: true,
+            optional: true,
+          },
+        ],
+        action: { zh: '保存并构建桥接', en: 'Save and build bridge' },
+      },
     ],
   },
   {
     channel: 'wechat',
-    label: 'WeChat',
-    title: 'Prepare WeChat Claude Code bridge',
-    body: 'Dardanus will keep the same Claude Code bridge shape. WeChat support is planned as a QR-login channel bundle, not an OpenClaw plugin dependency.',
+    label: { zh: '微信', en: 'WeChat' },
+    intro: {
+      zh: '为后续 WeChat Claude Code channel bundle 预留扫码接入路线。',
+      en: 'Prepare the future WeChat Claude Code channel bundle with QR login.',
+    },
+    badge: { zh: '规划中', en: 'Planned' },
     guideUrl: 'https://github.com/Tencent/openclaw-weixin',
-    status: 'Planned',
-    fields: [
-      { key: 'displayName', label: 'Channel Name', placeholder: 'My WeChat bridge' },
-      { key: 'callbackUrl', label: 'Callback URL', placeholder: 'Optional local callback URL', optional: true },
+    steps: [
+      {
+        title: { zh: '确认微信通道路线', en: 'Review WeChat channel route' },
+        body: {
+          zh: 'Dardanus 会保留 Claude Code bridge 架构，参考扫码登录通道形态，但不会把产品变成 OpenClaw plugin。',
+          en: 'Dardanus keeps the Claude Code bridge architecture and uses QR-login channel design as reference, without becoming an OpenClaw plugin.',
+        },
+        guideUrl: 'https://github.com/Tencent/openclaw-weixin',
+        action: { zh: '打开参考页面', en: 'Open reference' },
+      },
+      {
+        title: { zh: '预留通道档案', en: 'Reserve channel profile' },
+        body: {
+          zh: '先保存一个本地通道档案。等 WeChat bundle 落地后，Dardanus 会用同一套引导补齐扫码和会话桥接。',
+          en: 'Save a local channel profile now. Once the WeChat bundle lands, Dardanus will continue the QR and session bridge setup here.',
+        },
+        fields: [
+          {
+            key: 'displayName',
+            label: { zh: '通道名称', en: 'Channel Name' },
+            placeholder: { zh: '我的微信桥接', en: 'My WeChat bridge' },
+          },
+          {
+            key: 'callbackUrl',
+            label: { zh: '回调地址', en: 'Callback URL' },
+            placeholder: { zh: '可选：本地回调地址', en: 'Optional local callback URL' },
+            optional: true,
+          },
+        ],
+        action: { zh: '保存预留档案', en: 'Save profile' },
+      },
     ],
   },
   {
     channel: 'wecom',
-    label: 'WeCom',
-    title: 'Prepare WeCom Claude Code bridge',
-    body: 'Dardanus will expose WeCom as a future enterprise IM channel for Claude Code sessions with a unified setup flow.',
+    label: { zh: '企业微信', en: 'WeCom' },
+    intro: {
+      zh: '为后续 WeCom Claude Code enterprise channel bundle 预留企业 IM 路线。',
+      en: 'Prepare the future WeCom Claude Code enterprise IM channel bundle.',
+    },
+    badge: { zh: '规划中', en: 'Planned' },
     guideUrl: 'https://github.com/WecomTeam/wecom-openclaw-plugin',
-    status: 'Planned',
-    fields: [
-      { key: 'displayName', label: 'Channel Name', placeholder: 'My WeCom bridge' },
-      { key: 'callbackUrl', label: 'Callback URL', placeholder: 'Optional enterprise callback URL', optional: true },
+    steps: [
+      {
+        title: { zh: '确认企业微信路线', en: 'Review WeCom route' },
+        body: {
+          zh: '企业微信会作为 Dardanus 面向 Claude Code 的企业 IM 通道。当前先参考企业工作流与扫码授权形态。',
+          en: 'WeCom will be an enterprise IM channel for Dardanus to Claude Code. For now, review enterprise workflow and QR authorization patterns.',
+        },
+        guideUrl: 'https://github.com/WecomTeam/wecom-openclaw-plugin',
+        action: { zh: '打开参考页面', en: 'Open reference' },
+      },
+      {
+        title: { zh: '预留企业通道档案', en: 'Reserve enterprise profile' },
+        body: {
+          zh: '保存企业微信通道名称和可选回调地址。后续 bundle 完成后会继续在这里引导扫码、授权与桥接启动。',
+          en: 'Save a WeCom channel name and optional callback URL. After the bundle lands, this guide will continue QR, authorization, and bridge startup.',
+        },
+        fields: [
+          {
+            key: 'displayName',
+            label: { zh: '通道名称', en: 'Channel Name' },
+            placeholder: { zh: '我的企业微信桥接', en: 'My WeCom bridge' },
+          },
+          {
+            key: 'callbackUrl',
+            label: { zh: '回调地址', en: 'Callback URL' },
+            placeholder: { zh: '可选：企业回调地址', en: 'Optional enterprise callback URL' },
+            optional: true,
+          },
+        ],
+        action: { zh: '保存预留档案', en: 'Save profile' },
+      },
     ],
   },
 ];
-const LOADING_FRAMES = ['[|] checking keys', '[/] writing config', '[-] waking bridge', '[\\] waiting for tunnel'];
+const SETUP_COPY = {
+  chooseTitle: { zh: '选择你的 IM 接入方式', en: 'Choose an IM channel' },
+  chooseBody: {
+    zh: 'Dardanus 会像教练一样一步一步带你完成 Claude Code bridge 初始化。先选择入口，下一屏只显示该入口需要做的事情。',
+    en: 'Dardanus will coach you through Claude Code bridge setup. Choose one entry point first; the next screen only shows that channel.',
+  },
+  language: { zh: '中文', en: 'English' },
+  back: { zh: '返回', en: 'Back' },
+  next: { zh: '下一步', en: 'Next' },
+  done: { zh: '完成', en: 'Done' },
+  connect: { zh: '开始构建', en: 'Build' },
+  openGuide: { zh: '打开页面', en: 'Open' },
+  finish: { zh: '完成设置', en: 'Finish' },
+  loadingDone: {
+    zh: '桥接初始化已提交。Dardanus 会在 bridge 与 tunnel 健康后切换状态。',
+    en: 'Bridge setup was submitted. Dardanus will update state after bridge and tunnel are healthy.',
+  },
+};
+const LOADING_FRAMES = {
+  zh: ['[|] 检查密钥', '[/] 写入配置', '[-] 拉起桥接', '[\\] 等待 tunnel'],
+  en: ['[|] checking keys', '[/] writing config', '[-] waking bridge', '[\\] waiting for tunnel'],
+} satisfies Record<SetupLanguage, string[]>;
 
 const appWindow = getCurrentWindow();
 const button = document.querySelector<HTMLElement>('#crab-button');
@@ -84,7 +234,9 @@ const setupPanel = document.querySelector<HTMLElement>('#setup-panel');
 const setupCount = document.querySelector<HTMLElement>('#setup-count');
 const setupTitle = document.querySelector<HTMLElement>('#setup-title');
 const setupBody = document.querySelector<HTMLElement>('#setup-body');
+const setupLanguagePicker = document.querySelector<HTMLElement>('#setup-language');
 const setupClientList = document.querySelector<HTMLElement>('#setup-client-list');
+const setupStepList = document.querySelector<HTMLElement>('#setup-step-list');
 const setupForm = document.querySelector<HTMLFormElement>('#setup-form');
 const setupLog = document.querySelector<HTMLElement>('#setup-log');
 
@@ -97,7 +249,9 @@ if (
   !setupCount ||
   !setupTitle ||
   !setupBody ||
+  !setupLanguagePicker ||
   !setupClientList ||
+  !setupStepList ||
   !setupForm ||
   !setupLog
 ) {
@@ -112,7 +266,9 @@ const setup = setupPanel;
 const setupStepCount = setupCount;
 const setupStepTitle = setupTitle;
 const setupStepBody = setupBody;
+const setupLanguages = setupLanguagePicker;
 const setupClients = setupClientList;
+const setupSteps = setupStepList;
 const setupFields = setupForm;
 const setupOutput = setupLog;
 const gestures = createGestureTracker();
@@ -125,6 +281,9 @@ let bubblingIntentTimer: number | undefined;
 let autoWakeInFlight = false;
 let lastAutoWakeAt = 0;
 let selectedSetupChannel: SetupChannel = 'feishu';
+let setupLanguage: SetupLanguage = 'zh';
+let setupView: SetupView = 'choose';
+let setupStepIndex = 0;
 let loadingTimer: number | undefined;
 
 function shouldAutoWake(snapshot: Awaited<ReturnType<typeof fetchBridgeSnapshot>>): boolean {
@@ -209,39 +368,93 @@ function selectedSetupClient(): SetupClient {
   return SETUP_CLIENTS.find((client) => client.channel === selectedSetupChannel) ?? SETUP_CLIENTS[0];
 }
 
-function renderSetupGuide(): void {
+function currentSetupStep(): SetupStep {
   const client = selectedSetupClient();
-  setupStepCount.textContent = `Dardanus Claude Code bridge / ${client.status}`;
-  setupStepTitle.textContent = client.title;
-  setupStepBody.textContent = client.body;
+  return client.steps[Math.min(setupStepIndex, client.steps.length - 1)];
+}
+
+function text(value: LocalizedText): string {
+  return value[setupLanguage];
+}
+
+function renderSetupGuide(): void {
+  renderSetupLanguageToggle();
+  if (setupView === 'choose') {
+    renderSetupChooser();
+    return;
+  }
+
+  const client = selectedSetupClient();
+  const step = currentSetupStep();
+  setupStepCount.textContent = `${text(client.label)} / ${setupStepIndex + 1} of ${client.steps.length}`;
+  setupStepTitle.textContent = text(step.title);
+  setupStepBody.textContent = text(step.body);
+  setupClients.replaceChildren();
+  setupSteps.replaceChildren(...client.steps.map((item, index) => renderSetupStepDot(item, index)));
+  setupFields.replaceChildren(...(step.fields ?? []).map(renderSetupField));
+  setupOutput.textContent = step.fields?.length
+    ? setupLanguage === 'zh'
+      ? '把刚刚复制的 key 粘贴到下面。Dardanus 只写入本地配置文件。'
+      : 'Paste the keys you just copied. Dardanus only writes the local config file.'
+    : text(step.action);
+  updateSetupActions();
+}
+
+function renderSetupChooser(): void {
+  setupStepCount.textContent = 'Dardanus Coach Setup';
+  setupStepTitle.textContent = text(SETUP_COPY.chooseTitle);
+  setupStepBody.textContent = text(SETUP_COPY.chooseBody);
   setupClients.replaceChildren(...SETUP_CLIENTS.map(renderSetupClientButton));
-  setupFields.replaceChildren(...client.fields.map(renderSetupField));
+  setupSteps.replaceChildren();
+  setupFields.replaceChildren();
   setupOutput.textContent =
-    client.channel === 'feishu'
-      ? `Webhook path: /feishu/webhook\nPaste credentials copied from the developer console.`
-      : `This reserves a ${client.label} channel profile for the future Claude Code bundle.`;
+    setupLanguage === 'zh'
+      ? '选择一个入口后，Dardanus 会只展示该入口需要做的下一步。'
+      : 'Choose one entry point. Dardanus will only show the next step for that channel.';
+  updateSetupActions();
+}
+
+function renderSetupLanguageToggle(): void {
+  setupLanguages.replaceChildren(
+    ...(['zh', 'en'] as const).map((language) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.setupLanguage = language;
+      button.dataset.selected = String(language === setupLanguage);
+      button.textContent = SETUP_COPY.language[language];
+      return button;
+    }),
+  );
 }
 
 function renderSetupClientButton(client: SetupClient): HTMLElement {
   const button = document.createElement('button');
   button.type = 'button';
   button.dataset.setupClient = client.channel;
-  button.dataset.selected = String(client.channel === selectedSetupChannel);
-  button.textContent = client.label;
+  button.dataset.selected = String(setupView !== 'choose' && client.channel === selectedSetupChannel);
+  button.innerHTML = `<strong>${text(client.label)}</strong><span>${text(client.badge)}</span><small>${text(client.intro)}</small>`;
   button.setAttribute('role', 'option');
   button.setAttribute('aria-selected', String(client.channel === selectedSetupChannel));
   return button;
+}
+
+function renderSetupStepDot(step: SetupStep, index: number): HTMLElement {
+  const item = document.createElement('li');
+  item.dataset.current = String(index === setupStepIndex);
+  item.dataset.done = String(index < setupStepIndex);
+  item.textContent = text(step.title);
+  return item;
 }
 
 function renderSetupField(field: SetupField): HTMLElement {
   const label = document.createElement('label');
   label.className = 'setup-field';
   const caption = document.createElement('span');
-  caption.textContent = `${field.label}${field.optional ? ' (optional)' : ''}`;
+  caption.textContent = `${text(field.label)}${field.optional ? (setupLanguage === 'zh' ? '（可选）' : ' (optional)') : ''}`;
   const input = document.createElement('input');
   input.name = field.key;
   input.type = field.secret ? 'password' : 'text';
-  input.placeholder = field.placeholder;
+  input.placeholder = text(field.placeholder);
   input.autocomplete = 'off';
   if (!field.optional) {
     input.required = true;
@@ -264,8 +477,12 @@ function collectSetupConfig(): Record<string, string> {
 function startSetupLoading(): void {
   let frame = 0;
   window.clearInterval(loadingTimer);
+  setupView = 'loading';
+  updateSetupActions();
   loadingTimer = window.setInterval(() => {
-    setupOutput.textContent = `${LOADING_FRAMES[frame % LOADING_FRAMES.length]}\nPreparing ${selectedSetupClient().label} for Claude Code...`;
+    const frames = LOADING_FRAMES[setupLanguage];
+    const suffix = setupLanguage === 'zh' ? `正在准备 ${text(selectedSetupClient().label)} 到 Claude Code...` : `Preparing ${text(selectedSetupClient().label)} for Claude Code...`;
+    setupOutput.textContent = `${frames[frame % frames.length]}\n${suffix}`;
     frame += 1;
   }, 220);
 }
@@ -275,12 +492,16 @@ function stopSetupLoading(message: string): void {
     window.clearInterval(loadingTimer);
     loadingTimer = undefined;
   }
+  setupView = 'coach';
+  updateSetupActions();
   setupOutput.textContent = message;
 }
 
 async function showSetupGuide(): Promise<void> {
   hideCrabMenu();
   cancelBubblingIntent();
+  setupView = 'choose';
+  setupStepIndex = 0;
   renderSetupGuide();
   root.dataset.setup = 'true';
   setup.dataset.visible = 'true';
@@ -290,10 +511,42 @@ async function showSetupGuide(): Promise<void> {
 }
 
 async function hideSetupGuide(): Promise<void> {
+  if (loadingTimer !== undefined) {
+    window.clearInterval(loadingTimer);
+    loadingTimer = undefined;
+  }
   setup.dataset.visible = 'false';
   setup.setAttribute('aria-hidden', 'true');
   root.dataset.setup = 'false';
   await setPetWindowSize(PET_WINDOW_SIZE);
+}
+
+function updateSetupActions(): void {
+  const back = setup.querySelector<HTMLButtonElement>('[data-setup-action="back"]');
+  const guide = setup.querySelector<HTMLButtonElement>('[data-setup-action="open-guide"]');
+  const next = setup.querySelector<HTMLButtonElement>('[data-setup-action="next"]');
+  const save = setup.querySelector<HTMLButtonElement>('[data-setup-action="save"]');
+  const done = setup.querySelector<HTMLButtonElement>('[data-setup-action="done"]');
+  const step = setupView === 'coach' ? currentSetupStep() : undefined;
+  if (back) {
+    back.textContent = text(SETUP_COPY.back);
+    back.hidden = setupView === 'loading';
+  }
+  if (guide) {
+    guide.textContent = text(SETUP_COPY.openGuide);
+    guide.hidden = setupView !== 'coach' || !step?.guideUrl;
+  }
+  if (next) {
+    next.textContent = setupView === 'choose' ? text(SETUP_COPY.next) : text(SETUP_COPY.next);
+    next.hidden = setupView !== 'coach' || setupStepIndex >= selectedSetupClient().steps.length - 1;
+  }
+  if (save) {
+    save.textContent = setupView === 'coach' ? text(SETUP_COPY.connect) : text(SETUP_COPY.connect);
+    save.hidden = setupView !== 'coach' || setupStepIndex < selectedSetupClient().steps.length - 1;
+  }
+  if (done) {
+    done.textContent = setupView === 'loading' ? text(SETUP_COPY.finish) : text(SETUP_COPY.done);
+  }
 }
 
 function maybeShowFirstRunSetup(): void {
@@ -306,8 +559,29 @@ function maybeShowFirstRunSetup(): void {
 }
 
 async function runSetupAction(action: string | undefined): Promise<void> {
+  if (action === 'back') {
+    if (setupView === 'coach' && setupStepIndex > 0) {
+      setupStepIndex -= 1;
+    } else {
+      setupView = 'choose';
+      setupStepIndex = 0;
+    }
+    renderSetupGuide();
+    return;
+  }
+  if (action === 'next') {
+    if (setupView === 'coach') {
+      const step = currentSetupStep();
+      if (step.fields?.length && !setupFields.reportValidity()) {
+        return;
+      }
+      setupStepIndex = Math.min(selectedSetupClient().steps.length - 1, setupStepIndex + 1);
+      renderSetupGuide();
+    }
+    return;
+  }
   if (action === 'open-guide') {
-    await openSetupGuide(selectedSetupClient().guideUrl).catch((error) => {
+    await openSetupGuide(currentSetupStep().guideUrl ?? selectedSetupClient().guideUrl).catch((error) => {
       stopSetupLoading(error instanceof Error ? error.message : 'Failed to open guide');
     });
     return;
@@ -321,9 +595,9 @@ async function runSetupAction(action: string | undefined): Promise<void> {
       const result = await saveSetupConfig(collectSetupConfig());
       if (selectedSetupChannel === 'feishu') {
         await startDaemon();
-        stopSetupLoading(`${result}\nBridge wake requested. Dardanus will switch state when bridge and tunnel are healthy.`);
+        stopSetupLoading(`${result}\n${text(SETUP_COPY.loadingDone)}`);
       } else {
-        stopSetupLoading(`${result}\n${selectedSetupClient().label} is saved as a planned Claude Code channel.`);
+        stopSetupLoading(`${result}\n${text(selectedSetupClient().label)} ${setupLanguage === 'zh' ? '已保存为规划中的 Claude Code 通道。' : 'is saved as a planned Claude Code channel.'}`);
       }
       await refresh();
     } catch (error) {
@@ -427,9 +701,17 @@ setup.addEventListener('click', (event) => {
   if (!(target instanceof HTMLElement)) {
     return;
   }
+  const nextLanguage = target.dataset.setupLanguage as SetupLanguage | undefined;
+  if (nextLanguage !== undefined) {
+    setupLanguage = nextLanguage;
+    renderSetupGuide();
+    return;
+  }
   const setupClient = target.dataset.setupClient as SetupChannel | undefined;
   if (setupClient !== undefined) {
     selectedSetupChannel = setupClient;
+    setupView = 'coach';
+    setupStepIndex = 0;
     renderSetupGuide();
     return;
   }

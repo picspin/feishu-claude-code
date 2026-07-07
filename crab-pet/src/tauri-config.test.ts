@@ -139,12 +139,17 @@ test('setup guide renders IM choices and form controls', () => {
   const main = readFileSync(new URL('../src-tauri/src/main.rs', import.meta.url), 'utf8');
 
   assert.match(html, /id="setup-client-list"/);
+  assert.match(html, /id="setup-language"/);
+  assert.match(html, /id="setup-step-list"/);
   assert.match(html, /id="setup-form"/);
   assert.match(html, /id="setup-log"/);
   assert.match(app, /channel: 'feishu'/);
   assert.match(app, /channel: 'wechat'/);
   assert.match(app, /channel: 'wecom'/);
-  assert.match(app, /Dardanus will keep the same Claude Code bridge shape/);
+  assert.match(app, /type SetupLanguage = 'zh' \| 'en'/);
+  assert.match(app, /打开开发者后台/);
+  assert.match(app, /Copy app credentials/);
+  assert.match(app, /Dardanus will coach you through Claude Code bridge setup/);
   assert.match(tauri, /saveSetupConfig/);
   assert.match(tauri, /openSetupGuide/);
   assert.match(commands, /save_setup_config/);
