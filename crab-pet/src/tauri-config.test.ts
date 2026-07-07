@@ -127,3 +127,14 @@ test('Tauri exposes a quit command for the pet menu', () => {
   assert.match(main, /commands::quit_app/);
   assert.match(tauri, /quitApp/);
 });
+
+test('tauri npm script pins macOS rust and clang tools for release builds', () => {
+  const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+    scripts?: Record<string, string>;
+  };
+
+  const tauriScript = packageJson.scripts?.tauri ?? '';
+  assert.match(tauriScript, /\.rustup\/toolchains\/stable-aarch64-apple-darwin\/bin/);
+  assert.match(tauriScript, /xcrun -f clang/);
+  assert.match(tauriScript, /CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER/);
+});
