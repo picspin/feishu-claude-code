@@ -35,9 +35,9 @@ test('snaps pet near screen edges and the Dock band', () => {
       position: { x: 12, y: 336 },
       windowSize,
       workArea,
-      threshold: 28,
+      threshold: 6,
     }),
-    { x: 0, y: 336 },
+    { x: 12, y: 336 },
   );
 
   assert.deepEqual(
@@ -45,7 +45,7 @@ test('snaps pet near screen edges and the Dock band', () => {
       position: { x: 2518, y: 1472 },
       windowSize,
       workArea,
-      threshold: 28,
+      threshold: 6,
     }),
     { x: 2520, y: 1468 },
   );
@@ -58,6 +58,33 @@ test('snaps pet near screen edges and the Dock band', () => {
       threshold: 28,
     }),
     { x: 500, y: 620 },
+  );
+});
+
+test('snaps pet to a single foreground window target on release', () => {
+  const workArea = { x: 0, y: 50, width: 2880, height: 1750 };
+  const windowSize = { width: 160, height: 124 };
+
+  assert.deepEqual(
+    snapPetToMagneticTargets({
+      position: { x: 632, y: 404 },
+      windowSize,
+      workArea,
+      magnetRects: [{ x: 800, y: 400, width: 900, height: 700 }],
+      threshold: 8,
+    }),
+    { x: 632, y: 400 },
+  );
+
+  assert.deepEqual(
+    snapPetToMagneticTargets({
+      position: { x: 632, y: 391 },
+      windowSize,
+      workArea,
+      magnetRects: [{ x: 800, y: 400, width: 900, height: 700 }],
+      threshold: 8,
+    }),
+    { x: 632, y: 391 },
   );
 });
 

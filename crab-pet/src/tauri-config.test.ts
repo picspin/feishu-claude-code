@@ -88,6 +88,8 @@ test('app ensures the bridge daemon and wires free pet dragging', () => {
   assert.match(app, /ensureDaemon\(\)/);
   assert.match(app, /maybeAutoWake/);
   assert.match(app, /createPetDrag/);
+  assert.match(app, /frontmostWindowBounds/);
+  assert.match(app, /canStartWindowDrag/);
   assert.match(app, /drag\.pointerDown/);
   assert.match(app, /drag\.pointerMove/);
   assert.match(app, /drag\.pointerUp/);
@@ -154,8 +156,10 @@ test('setup guide renders IM choices and form controls', () => {
   assert.match(tauri, /openSetupGuide/);
   assert.match(commands, /save_setup_config/);
   assert.match(commands, /open_setup_guide/);
+  assert.match(commands, /frontmost_window_bounds/);
   assert.match(main, /commands::save_setup_config/);
   assert.match(main, /commands::open_setup_guide/);
+  assert.match(main, /commands::frontmost_window_bounds/);
 });
 
 test('tauri npm script pins macOS rust and clang tools for release builds', () => {

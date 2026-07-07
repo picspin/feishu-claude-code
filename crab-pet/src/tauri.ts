@@ -1,5 +1,12 @@
 type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 
+export interface WindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface TauriGlobal {
   core?: {
     invoke?: Invoke;
@@ -41,4 +48,8 @@ export async function openSetupGuide(url: string): Promise<void> {
 
 export async function saveSetupConfig(config: Record<string, string>): Promise<string> {
   return invoke<string>('save_setup_config', { config });
+}
+
+export async function frontmostWindowBounds(): Promise<WindowBounds | null> {
+  return invoke<WindowBounds | null>('frontmost_window_bounds');
 }

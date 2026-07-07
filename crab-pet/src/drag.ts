@@ -13,9 +13,13 @@ export interface Size {
 
 export interface WorkArea extends Point, Size {}
 
+export interface MagnetRect extends Point, Size {}
+
 const DRAG_THRESHOLD_PX = 4;
-const MAGNET_THRESHOLD_PX = 28;
+const MAGNET_THRESHOLD_PX = 6;
+const WINDOW_MAGNET_THRESHOLD_PX = 8;
 const DOCK_MAGNET_GAP_PX = 32;
+const WINDOW_MAGNET_GAP_PX = 8;
 
 export function clampPetDrag(input: {
   startWindow: Point;
@@ -58,20 +62,24 @@ export function snapPetToMagneticTargets(input: {
   position: Point;
   windowSize: Size;
   workArea: WorkArea;
+  magnetRects?: MagnetRect[];
   threshold?: number;
 }): Point {
   const threshold = input.threshold ?? MAGNET_THRESHOLD_PX;
   const maxX = input.workArea.x + Math.max(0, input.workArea.width - input.windowSize.width);
   const maxY = input.workArea.y + Math.max(0, input.workArea.height - input.windowSize.height);
   const dockY = maxY - DOCK_MAGNET_GAP_PX;
+  const xTargets = [input.workArea.x, maxX];
+  const yTargets = [input.workArea.y, dockY, maxY].filter((target) => target >= input.workArea.y && target <= maxY);
+
+  for (const rect of input.magnetRects ?? []) {
+    xTargets.push(rect.x - input.windowSize.width - WINDOW_MAGNET_GAP_PX, rect.x, rect.x + rect.width + WINDOW_MAGNET_GAP_PX);
+    yTargets.push(rect.y - input.windowSize.height - WINDOW_MAGNET_GAP_PX, rect.y, rect.y + rect.height + WINDOW_MAGNET_GAP_PX);
+  }
 
   return {
-    x: snapValue(input.position.x, [input.workArea.x, maxX], threshold),
-    y: snapValue(
-      input.position.y,
-      [input.workArea.y, dockY, maxY].filter((target) => target >= input.workArea.y && target <= maxY),
-      threshold,
-    ),
+    x: clamp(snapValue(input.position.x, xTargets, threshold), input.workArea.x, maxX),
+    y: clamp(snapValue(input.position.y, yTargets, threshold), input.workArea.y, maxY),
   };
 }
 
@@ -81,7 +89,7 @@ export function shouldContinueDrag(buttons: number): boolean {
 
 export const shouldContinueHorizontalDrag = shouldContinueDrag;
 
-export function createPetDrag(): {
+export function createPetDrag(options: { getMagnetRects?: () => Promise<MagnetRect[]> } = {}): {
   pointerDown: (event: PointerEvent) => Promise<void>;
   pointerMove: (event: PointerEvent) => Promise<void>;
   pointerUp: () => Promise<void>;
@@ -96,6 +104,9 @@ export function createPetDrag(): {
   let dragging = false;
   let draggedSincePointerDown = false;
   let lastPosition: Point | undefined;
+  let magnetRects: MagnetRect[] = [];
+  let captureElement: Element | undefined;
+  let capturedPointerId: number | undefined;
 
   async function pointerDown(event: PointerEvent): Promise<void> {
     if (event.button !== 0) {
@@ -103,20 +114,26 @@ export function createPetDrag(): {
     }
 
     event.preventDefault();
+    captureElement = event.currentTarget instanceof Element ? event.currentTarget : undefined;
+    capturedPointerId = event.pointerId;
+    captureElement?.setPointerCapture?.(event.pointerId);
     startPointer = { x: event.clientX, y: event.clientY };
     dragging = false;
     draggedSincePointerDown = false;
     lastPosition = undefined;
+    magnetRects = [];
 
-    const [position, size, nextScaleFactor, monitor] = await Promise.all([
+    const [position, size, nextScaleFactor, monitor, nextMagnetRects] = await Promise.all([
       appWindow.outerPosition(),
       appWindow.outerSize(),
       appWindow.scaleFactor(),
       currentMonitor(),
+      options.getMagnetRects?.().catch(() => []) ?? Promise.resolve([]),
     ]);
     startWindow = { x: position.x, y: position.y };
     windowSize = { width: size.width, height: size.height };
     scaleFactor = nextScaleFactor;
+    magnetRects = nextMagnetRects;
 
     const area = monitor?.workArea;
     workArea = area
@@ -168,7 +185,8 @@ export function createPetDrag(): {
         position: lastPosition,
         windowSize,
         workArea,
-        threshold: MAGNET_THRESHOLD_PX,
+        magnetRects,
+        threshold: magnetRects.length > 0 ? WINDOW_MAGNET_THRESHOLD_PX : MAGNET_THRESHOLD_PX,
       });
       if (nextPosition.x !== lastPosition.x || nextPosition.y !== lastPosition.y) {
         await appWindow.setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
@@ -180,6 +198,16 @@ export function createPetDrag(): {
     windowSize = undefined;
     workArea = undefined;
     lastPosition = undefined;
+    magnetRects = [];
+    if (captureElement !== undefined && capturedPointerId !== undefined) {
+      try {
+        captureElement.releasePointerCapture?.(capturedPointerId);
+      } catch {
+        // Pointer capture can already be gone after the OS cancels a drag.
+      }
+    }
+    captureElement = undefined;
+    capturedPointerId = undefined;
     dragging = false;
   }
 

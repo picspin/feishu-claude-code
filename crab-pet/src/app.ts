@@ -9,7 +9,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { createPetDrag } from './drag.js';
 import { createTimedPetDisplay } from './display-state.js';
 import { createCrawlLocomotion } from './locomotion.js';
-import { ensureDaemon, openSetupGuide, positionNearDock, quitApp, saveSetupConfig, startDaemon } from './tauri.js';
+import { ensureDaemon, frontmostWindowBounds, openSetupGuide, positionNearDock, quitApp, saveSetupConfig, startDaemon } from './tauri.js';
 
 const PET_WINDOW_SIZE = { width: 160, height: 124 };
 const SETUP_WINDOW_SIZE = { width: 460, height: 560 };
@@ -272,7 +272,12 @@ const setupSteps = setupStepList;
 const setupFields = setupForm;
 const setupOutput = setupLog;
 const gestures = createGestureTracker();
-const drag = createPetDrag();
+const drag = createPetDrag({
+  getMagnetRects: async () => {
+    const bounds = await frontmostWindowBounds().catch(() => null);
+    return bounds === null ? [] : [bounds];
+  },
+});
 const timedDisplay = createTimedPetDisplay();
 const crawlLocomotion = createCrawlLocomotion();
 let interaction: InteractionState | undefined;
@@ -633,6 +638,21 @@ function showCrabMenu(event: MouseEvent): void {
   crabMenu.setAttribute('aria-hidden', 'false');
 }
 
+function canStartWindowDrag(event: PointerEvent): boolean {
+  if (event.button !== 0) {
+    return false;
+  }
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  return target.closest('button, input, textarea, select, label, form') === null;
+}
+
+function setupIsVisible(): boolean {
+  return setup.dataset.visible === 'true';
+}
+
 async function reloadPetStatus(): Promise<void> {
   cancelBubblingIntent();
   await hideSetupGuide();
@@ -773,6 +793,34 @@ crabButton.addEventListener('mouseleave', () => {
   if (interaction === 'bubbling') {
     clearInteraction();
   }
+});
+
+root.addEventListener('pointerdown', (event) => {
+  if (!setupIsVisible() || !canStartWindowDrag(event)) {
+    return;
+  }
+  void drag.pointerDown(event).catch(() => undefined);
+});
+
+root.addEventListener('pointermove', (event) => {
+  if (!setupIsVisible()) {
+    return;
+  }
+  void drag.pointerMove(event).catch(() => undefined);
+});
+
+root.addEventListener('pointerup', () => {
+  if (!setupIsVisible()) {
+    return;
+  }
+  void drag.pointerUp().catch(() => undefined);
+});
+
+root.addEventListener('pointercancel', () => {
+  if (!setupIsVisible()) {
+    return;
+  }
+  void drag.pointerUp().catch(() => undefined);
 });
 
 window.addEventListener('beforeunload', () => {

@@ -39,3 +39,8 @@ pub fn save_setup_config(
 ) -> Result<String, String> {
     crate::setup::save_setup_config(config)
 }
+
+#[tauri::command]
+pub fn frontmost_window_bounds() -> Result<Option<crate::accessibility::WindowBounds>, String> {
+    crate::accessibility::frontmost_window_bounds()
+}
