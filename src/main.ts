@@ -218,6 +218,9 @@ function bridgeReadinessError(config: ReturnType<typeof loadConfig>): string | n
     }
     return getWeComBridgeState() === 'online' ? null : 'WeCom long connection is offline';
   }
+  if (config.activeChannel === 'wechat' || config.activeChannel === 'telegram') {
+    return `${config.activeChannel} channel runtime is not implemented yet`;
+  }
   if (!config.appId || !config.appSecret) {
     return 'Feishu app credentials are missing';
   }

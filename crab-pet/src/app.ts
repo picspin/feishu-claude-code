@@ -14,7 +14,7 @@ import { ensureDaemon, frontmostWindowBounds, openSetupGuide, positionNearDock, 
 const PET_WINDOW_SIZE = { width: 160, height: 124 };
 const SETUP_WINDOW_SIZE = { width: 460, height: 560 };
 const ONBOARDING_KEY = 'dardanus-onboarding-seen-v1';
-type SetupChannel = 'feishu' | 'wechat' | 'wecom';
+type SetupChannel = 'feishu' | 'wechat' | 'wecom' | 'telegram';
 type SetupLanguage = 'zh' | 'en';
 type SetupView = 'choose' | 'coach' | 'loading';
 type LocalizedText = Record<SetupLanguage, string>;
@@ -163,8 +163,8 @@ const SETUP_CLIENTS: SetupClient[] = [
     channel: 'wecom',
     label: { zh: '企业微信', en: 'WeCom' },
     intro: {
-      zh: '通过企业微信智能机器人长连接接入本地 Claude Code bridge。',
-      en: 'Connect a WeCom intelligent bot long connection to the local Claude Code bridge.',
+      zh: '通过企业微信智能机器人长连接接入本地 Claude Code bridge，兼容 OpenClaw 风格部署。',
+      en: 'Connect a WeCom intelligent bot long connection to the local Claude Code bridge, compatible with OpenClaw-style deployment.',
     },
     badge: { zh: '长连接', en: 'Long connection' },
     guideUrl: 'https://developer.work.weixin.qq.com/document/path/101463',
@@ -181,8 +181,8 @@ const SETUP_CLIENTS: SetupClient[] = [
       {
         title: { zh: '开启长连接 API 模式', en: 'Enable long-connection API mode' },
         body: {
-          zh: '在机器人配置页启用 API 模式，并选择“长连接”。该模式无需公网回调地址，但同一 BotID 同时只能保持一个有效连接。',
-          en: 'Enable API mode on the bot configuration page and choose long connection. This does not need a public callback URL, but one BotID can only keep one active connection at a time.',
+          zh: '在机器人配置页启用 API 模式，并选择“长连接”。该部署方式常用于 OpenClaw，但这里接入的是 Dardanus 的 Claude Code bridge。同一 BotID 同时只能保持一个有效连接。',
+          en: 'Enable API mode on the bot configuration page and choose long connection. This deployment style is common in OpenClaw, but here it connects to Dardanus Claude Code bridge. One BotID can only keep one active connection at a time.',
         },
         action: { zh: '我已开启长连接', en: 'Long connection is enabled' },
       },
@@ -218,6 +218,50 @@ const SETUP_CLIENTS: SetupClient[] = [
           },
         ],
         action: { zh: '保存并启动长连接', en: 'Save and start long connection' },
+      },
+    ],
+  },
+  {
+    channel: 'telegram',
+    label: { zh: 'Telegram', en: 'Telegram' },
+    intro: {
+      zh: '预留 Telegram Bot API 到 Claude Code bridge 的 polling/webhook 接入路线。',
+      en: 'Reserve a Telegram Bot API polling/webhook route to the Claude Code bridge.',
+    },
+    badge: { zh: '规划中', en: 'Planned' },
+    guideUrl: 'https://core.telegram.org/bots/tutorial',
+    steps: [
+      {
+        title: { zh: '创建 Telegram Bot', en: 'Create a Telegram Bot' },
+        body: {
+          zh: '在 BotFather 创建机器人并复制 bot token。Telegram Bot API 使用 HTTPS 接口，也支持 getUpdates polling 与 webhook 两种更新接收方式。',
+          en: 'Create a bot with BotFather and copy the bot token. Telegram Bot API uses HTTPS and supports both getUpdates polling and webhook update delivery.',
+        },
+        guideUrl: 'https://core.telegram.org/bots/tutorial',
+        action: { zh: '打开 Telegram 教程', en: 'Open Telegram tutorial' },
+      },
+      {
+        title: { zh: '粘贴 Bot Token', en: 'Paste Bot Token' },
+        body: {
+          zh: '保存 token 后，Dardanus 会先建立本地通道档案；后续 Telegram worker 会沿用这份配置接入 Claude Code。',
+          en: 'After saving the token, Dardanus creates a local channel profile. The future Telegram worker will use this config to connect to Claude Code.',
+        },
+        guideUrl: 'https://core.telegram.org/bots/api',
+        fields: [
+          {
+            key: 'botToken',
+            label: { zh: 'Bot Token', en: 'Bot Token' },
+            placeholder: { zh: '123456:ABC-DEF...', en: '123456:ABC-DEF...' },
+            secret: true,
+          },
+          {
+            key: 'apiBaseUrl',
+            label: { zh: 'Bot API Base URL', en: 'Bot API Base URL' },
+            placeholder: { zh: 'https://api.telegram.org', en: 'https://api.telegram.org' },
+            optional: true,
+          },
+        ],
+        action: { zh: '保存 Telegram 档案', en: 'Save Telegram profile' },
       },
     ],
   },

@@ -20,6 +20,7 @@ test('main window has Tauri IPC capability for crab commands', () => {
   assert.equal(capability.permissions?.includes('core:window:allow-scale-factor'), true);
   assert.equal(capability.permissions?.includes('core:window:allow-set-size'), true);
   assert.equal(capability.permissions?.includes('core:window:allow-set-position'), true);
+  assert.equal(capability.permissions?.includes('core:window:allow-start-dragging'), true);
 });
 
 test('main window leaves enough room for the animated hermit crab', () => {
@@ -84,6 +85,7 @@ test('app triggers bubbling only through hover or hold intent', () => {
 
 test('app ensures the bridge daemon and wires free pet dragging', () => {
   const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
+  const drag = readFileSync(new URL('../src/drag.ts', import.meta.url), 'utf8');
 
   assert.match(app, /ensureDaemon\(\)/);
   assert.match(app, /maybeAutoWake/);
@@ -93,6 +95,7 @@ test('app ensures the bridge daemon and wires free pet dragging', () => {
   assert.match(app, /drag\.pointerDown/);
   assert.match(app, /drag\.pointerMove/);
   assert.match(app, /drag\.pointerUp/);
+  assert.match(drag, /startDragging\(\)/);
   assert.doesNotMatch(app, /stopDaemon\(\)/);
 });
 
@@ -148,11 +151,14 @@ test('setup guide renders IM choices and form controls', () => {
   assert.match(app, /channel: 'feishu'/);
   assert.match(app, /channel: 'wechat'/);
   assert.match(app, /channel: 'wecom'/);
+  assert.match(app, /channel: 'telegram'/);
   assert.match(app, /type SetupLanguage = 'zh' \| 'en'/);
   assert.match(app, /打开开发者后台/);
   assert.match(app, /智能机器人长连接/);
+  assert.match(app, /Telegram Bot API/);
   assert.match(app, /botId/);
   assert.match(app, /secret/);
+  assert.match(app, /botToken/);
   assert.match(app, /Copy app credentials/);
   assert.match(app, /Dardanus will coach you through Claude Code bridge setup/);
   assert.match(tauri, /saveSetupConfig/);

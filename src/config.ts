@@ -15,7 +15,7 @@ export interface Config {
   appSecret?: string;
   encryptKey?: string;
   verificationToken?: string;
-  activeChannel?: 'feishu' | 'wechat' | 'wecom';
+  activeChannel?: 'feishu' | 'wechat' | 'wecom' | 'telegram';
   channels?: Record<
     string,
     {
@@ -28,6 +28,9 @@ export interface Config {
       secret?: string;
       websocketUrl?: string;
       heartbeatSeconds?: number;
+      botToken?: string;
+      apiBaseUrl?: string;
+      mode?: 'polling' | 'webhook' | 'long_connection';
     }
   >;
 }

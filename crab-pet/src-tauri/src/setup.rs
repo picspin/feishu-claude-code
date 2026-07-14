@@ -36,6 +36,7 @@ pub fn save_setup_config(config: HashMap<String, String>) -> Result<String, Stri
         "feishu" => save_feishu_config(&mut root, &config)?,
         "wechat" => save_future_channel_config(&mut root, channel, &config)?,
         "wecom" => save_wecom_config(&mut root, &config)?,
+        "telegram" => save_telegram_config(&mut root, &config)?,
         _ => return Err("Unsupported IM channel".into()),
     }
 
@@ -118,6 +119,27 @@ fn save_wecom_config(root: &mut Value, config: &HashMap<String, String>) -> Resu
     Ok(())
 }
 
+fn save_telegram_config(root: &mut Value, config: &HashMap<String, String>) -> Result<(), String> {
+    let mut channel_config = Map::new();
+    channel_config.insert("status".into(), json!("planned"));
+    channel_config.insert("bridge".into(), json!("claude-code"));
+    channel_config.insert("login".into(), json!("polling"));
+    channel_config.insert("mode".into(), json!("polling"));
+    channel_config.insert("displayName".into(), json!("Telegram Bot API"));
+    channel_config.insert("botToken".into(), json!(required(config, "botToken")?));
+    channel_config.insert(
+        "apiBaseUrl".into(),
+        json!(optional(config.get("apiBaseUrl")).unwrap_or("https://api.telegram.org")),
+    );
+
+    if !root.get("channels").is_some_and(Value::is_object) {
+        root["channels"] = Value::Object(Map::new());
+    }
+    root["channels"]["telegram"] = Value::Object(channel_config);
+    set_string(root, "activeChannel", "telegram");
+    Ok(())
+}
+
 fn ensure_defaults(root: &mut Value) {
     if !root.is_object() {
         *root = Value::Object(Map::new());
@@ -183,6 +205,7 @@ fn is_allowed_setup_url(url: &str) -> bool {
         "https://github.com/Tencent/openclaw-weixin",
         "https://github.com/WecomTeam/wecom-openclaw-plugin",
         "https://developer.work.weixin.qq.com/",
+        "https://core.telegram.org/",
     ]
     .iter()
     .any(|prefix| url.starts_with(prefix))
@@ -197,6 +220,9 @@ mod tests {
         assert!(is_allowed_setup_url("https://open.feishu.cn/app"));
         assert!(is_allowed_setup_url(
             "https://developer.work.weixin.qq.com/document/path/101463"
+        ));
+        assert!(is_allowed_setup_url(
+            "https://core.telegram.org/bots/tutorial"
         ));
         assert!(is_allowed_setup_url(
             "https://github.com/picspin/feishu-claude-code"

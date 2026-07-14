@@ -97,16 +97,9 @@ export function createPetDrag(options: { getMagnetRects?: () => Promise<MagnetRe
 } {
   const appWindow = getCurrentWindow();
   let startPointer: Point | undefined;
-  let startWindow: Point | undefined;
-  let windowSize: Size | undefined;
-  let workArea: WorkArea | undefined;
-  let scaleFactor = 1;
   let dragging = false;
   let draggedSincePointerDown = false;
-  let lastPosition: Point | undefined;
-  let magnetRects: MagnetRect[] = [];
-  let captureElement: Element | undefined;
-  let capturedPointerId: number | undefined;
+  let nativeDragStarted = false;
 
   async function pointerDown(event: PointerEvent): Promise<void> {
     if (event.button !== 0) {
@@ -114,36 +107,10 @@ export function createPetDrag(options: { getMagnetRects?: () => Promise<MagnetRe
     }
 
     event.preventDefault();
-    captureElement = event.currentTarget instanceof Element ? event.currentTarget : undefined;
-    capturedPointerId = event.pointerId;
-    captureElement?.setPointerCapture?.(event.pointerId);
     startPointer = { x: event.clientX, y: event.clientY };
     dragging = false;
     draggedSincePointerDown = false;
-    lastPosition = undefined;
-    magnetRects = [];
-
-    const [position, size, nextScaleFactor, monitor, nextMagnetRects] = await Promise.all([
-      appWindow.outerPosition(),
-      appWindow.outerSize(),
-      appWindow.scaleFactor(),
-      currentMonitor(),
-      options.getMagnetRects?.().catch(() => []) ?? Promise.resolve([]),
-    ]);
-    startWindow = { x: position.x, y: position.y };
-    windowSize = { width: size.width, height: size.height };
-    scaleFactor = nextScaleFactor;
-    magnetRects = nextMagnetRects;
-
-    const area = monitor?.workArea;
-    workArea = area
-      ? {
-          x: area.position.x,
-          y: area.position.y,
-          width: area.size.width,
-          height: area.size.height,
-        }
-      : undefined;
+    nativeDragStarted = false;
   }
 
   async function pointerMove(event: PointerEvent): Promise<void> {
@@ -152,12 +119,7 @@ export function createPetDrag(options: { getMagnetRects?: () => Promise<MagnetRe
       return;
     }
 
-    if (
-      startPointer === undefined ||
-      startWindow === undefined ||
-      windowSize === undefined ||
-      workArea === undefined
-    ) {
+    if (startPointer === undefined || nativeDragStarted) {
       return;
     }
 
@@ -168,47 +130,52 @@ export function createPetDrag(options: { getMagnetRects?: () => Promise<MagnetRe
 
     dragging = true;
     draggedSincePointerDown = true;
-    const nextPosition = clampPetDrag({
-      startWindow,
-      pointerDelta,
-      scaleFactor,
-      windowSize,
-      workArea,
-    });
-    lastPosition = nextPosition;
-    await appWindow.setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
+    nativeDragStarted = true;
+    await appWindow.startDragging();
+    if (dragging) {
+      await snapCurrentWindowToMagneticTargets();
+    }
   }
 
   async function pointerUp(): Promise<void> {
-    if (dragging && lastPosition !== undefined && windowSize !== undefined && workArea !== undefined) {
-      const nextPosition = snapPetToMagneticTargets({
-        position: lastPosition,
-        windowSize,
-        workArea,
-        magnetRects,
-        threshold: magnetRects.length > 0 ? WINDOW_MAGNET_THRESHOLD_PX : MAGNET_THRESHOLD_PX,
-      });
-      if (nextPosition.x !== lastPosition.x || nextPosition.y !== lastPosition.y) {
-        await appWindow.setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
-      }
+    if (dragging) {
+      await snapCurrentWindowToMagneticTargets();
     }
 
     startPointer = undefined;
-    startWindow = undefined;
-    windowSize = undefined;
-    workArea = undefined;
-    lastPosition = undefined;
-    magnetRects = [];
-    if (captureElement !== undefined && capturedPointerId !== undefined) {
-      try {
-        captureElement.releasePointerCapture?.(capturedPointerId);
-      } catch {
-        // Pointer capture can already be gone after the OS cancels a drag.
-      }
-    }
-    captureElement = undefined;
-    capturedPointerId = undefined;
     dragging = false;
+    nativeDragStarted = false;
+  }
+
+  async function snapCurrentWindowToMagneticTargets(): Promise<void> {
+    const [position, size, monitor, magnetRects] = await Promise.all([
+      appWindow.outerPosition(),
+      appWindow.outerSize(),
+      currentMonitor(),
+      options.getMagnetRects?.().catch(() => []) ?? Promise.resolve([]),
+    ]);
+    const area = monitor?.workArea;
+    if (!area) {
+      return;
+    }
+    const windowSize = { width: size.width, height: size.height };
+    const workArea = {
+      x: area.position.x,
+      y: area.position.y,
+      width: area.size.width,
+      height: area.size.height,
+    };
+    const currentPosition = { x: position.x, y: position.y };
+    const nextPosition = snapPetToMagneticTargets({
+      position: currentPosition,
+      windowSize,
+      workArea,
+      magnetRects,
+      threshold: magnetRects.length > 0 ? WINDOW_MAGNET_THRESHOLD_PX : MAGNET_THRESHOLD_PX,
+    });
+    if (nextPosition.x !== currentPosition.x || nextPosition.y !== currentPosition.y) {
+      await appWindow.setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
+    }
   }
 
   function consumeDragClick(): boolean {
