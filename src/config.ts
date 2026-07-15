@@ -21,7 +21,7 @@ export interface Config {
     {
       status?: 'planned' | 'ready';
       bridge?: 'claude-code';
-      login?: 'qr' | 'webhook' | 'long_connection';
+      login?: 'qr' | 'webhook' | 'long_connection' | 'polling';
       displayName?: string;
       callbackUrl?: string;
       botId?: string;
@@ -31,6 +31,7 @@ export interface Config {
       botToken?: string;
       apiBaseUrl?: string;
       mode?: 'polling' | 'webhook' | 'long_connection';
+      pollingTimeoutSeconds?: number;
     }
   >;
 }

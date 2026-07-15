@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { RUNTIME_DIR } from '../constants.js';
 import type { Config } from '../config.js';
 import type { BridgeOnlineState, ClaudeRuntimeState } from '../bridge/status.js';
+import type { FeishuMessageType } from '../feishu/webhook.js';
 
 export type WeComRuntimeState = 'starting' | 'subscribed' | 'idle' | 'processing' | 'error' | 'closed';
 
@@ -36,7 +37,19 @@ function statusPath(): string {
 
 export function getWeComChannel(config: Config): WeComChannelConfig | undefined {
   const channel = config.channels?.wecom;
-  return channel?.login === 'long_connection' ? channel : undefined;
+  if (channel?.login !== 'long_connection') {
+    return undefined;
+  }
+  return {
+    status: channel.status,
+    bridge: channel.bridge,
+    login: 'long_connection',
+    displayName: channel.displayName,
+    botId: channel.botId,
+    secret: channel.secret,
+    websocketUrl: channel.websocketUrl,
+    heartbeatSeconds: channel.heartbeatSeconds,
+  };
 }
 
 export function weComConfigError(config: Config): string | null {
@@ -78,4 +91,15 @@ export function getWeComBridgeState(now: Date = new Date()): BridgeOnlineState {
 
 export function getWeComClaudeState(): ClaudeRuntimeState {
   return readWeComRuntimeStatus()?.state === 'processing' ? 'processing' : 'idle';
+}
+
+export function getWeComLastMessageType(): FeishuMessageType | null {
+  return normalizeMessageType(readWeComRuntimeStatus()?.lastMessageType);
+}
+
+function normalizeMessageType(value: string | undefined): FeishuMessageType | null {
+  if (value === 'text' || value === 'file' || value === 'image' || value === 'audio' || value === 'media' || value === 'post') {
+    return value;
+  }
+  return null;
 }

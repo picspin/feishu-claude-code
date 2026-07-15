@@ -121,7 +121,7 @@ fn save_wecom_config(root: &mut Value, config: &HashMap<String, String>) -> Resu
 
 fn save_telegram_config(root: &mut Value, config: &HashMap<String, String>) -> Result<(), String> {
     let mut channel_config = Map::new();
-    channel_config.insert("status".into(), json!("planned"));
+    channel_config.insert("status".into(), json!("ready"));
     channel_config.insert("bridge".into(), json!("claude-code"));
     channel_config.insert("login".into(), json!("polling"));
     channel_config.insert("mode".into(), json!("polling"));
@@ -131,6 +131,15 @@ fn save_telegram_config(root: &mut Value, config: &HashMap<String, String>) -> R
         "apiBaseUrl".into(),
         json!(optional(config.get("apiBaseUrl")).unwrap_or("https://api.telegram.org")),
     );
+    if let Some(value) = optional(config.get("pollingTimeoutSeconds")) {
+        let polling_timeout_seconds = value
+            .parse::<u64>()
+            .map_err(|_| "pollingTimeoutSeconds must be a positive integer".to_string())?;
+        if polling_timeout_seconds == 0 {
+            return Err("pollingTimeoutSeconds must be a positive integer".into());
+        }
+        channel_config.insert("pollingTimeoutSeconds".into(), json!(polling_timeout_seconds));
+    }
 
     if !root.get("channels").is_some_and(Value::is_object) {
         root["channels"] = Value::Object(Map::new());

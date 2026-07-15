@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Config } from '../config.js';
-import { getWeComBridgeState, getWeComChannel, weComConfigError, writeWeComRuntimeStatus } from './runtime.js';
+import { getWeComBridgeState, getWeComChannel, getWeComLastMessageType, weComConfigError, writeWeComRuntimeStatus } from './runtime.js';
 
 process.env.FEISHU_CLAUDE_CODE_RUNTIME_DIR = join(tmpdir(), `dardanus-wecom-runtime-test-${process.pid}`);
 
@@ -57,6 +57,18 @@ test('treats fresh subscribed runtime status as online', () => {
   });
 
   assert.equal(getWeComBridgeState(now), 'online');
+});
+
+test('exposes WeCom non-text message type for the desktop pet', () => {
+  writeWeComRuntimeStatus({
+    channel: 'wecom',
+    state: 'processing',
+    updatedAt: '2026-07-07T00:00:00.000Z',
+    botId: 'BOTID',
+    lastMessageType: 'image',
+  });
+
+  assert.equal(getWeComLastMessageType(), 'image');
 });
 
 test('treats stale runtime status as offline', () => {

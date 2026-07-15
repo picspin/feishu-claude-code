@@ -225,17 +225,17 @@ const SETUP_CLIENTS: SetupClient[] = [
     channel: 'telegram',
     label: { zh: 'Telegram', en: 'Telegram' },
     intro: {
-      zh: '预留 Telegram Bot API 到 Claude Code bridge 的 polling/webhook 接入路线。',
-      en: 'Reserve a Telegram Bot API polling/webhook route to the Claude Code bridge.',
+      zh: '通过 Telegram Bot API polling 接入本地 Claude Code bridge。',
+      en: 'Connect Telegram Bot API polling to the local Claude Code bridge.',
     },
-    badge: { zh: '规划中', en: 'Planned' },
+    badge: { zh: 'Polling 可用', en: 'Polling ready' },
     guideUrl: 'https://core.telegram.org/bots/tutorial',
     steps: [
       {
         title: { zh: '创建 Telegram Bot', en: 'Create a Telegram Bot' },
         body: {
-          zh: '在 BotFather 创建机器人并复制 bot token。Telegram Bot API 使用 HTTPS 接口，也支持 getUpdates polling 与 webhook 两种更新接收方式。',
-          en: 'Create a bot with BotFather and copy the bot token. Telegram Bot API uses HTTPS and supports both getUpdates polling and webhook update delivery.',
+          zh: '在 BotFather 创建机器人并复制 bot token。Dardanus 默认使用 getUpdates long polling，因此不需要填写 Cloudflare webhook URL。',
+          en: 'Create a bot with BotFather and copy the bot token. Dardanus uses getUpdates long polling by default, so no Cloudflare webhook URL is needed.',
         },
         guideUrl: 'https://core.telegram.org/bots/tutorial',
         action: { zh: '打开 Telegram 教程', en: 'Open Telegram tutorial' },
@@ -243,8 +243,8 @@ const SETUP_CLIENTS: SetupClient[] = [
       {
         title: { zh: '粘贴 Bot Token', en: 'Paste Bot Token' },
         body: {
-          zh: '保存 token 后，Dardanus 会先建立本地通道档案；后续 Telegram worker 会沿用这份配置接入 Claude Code。',
-          en: 'After saving the token, Dardanus creates a local channel profile. The future Telegram worker will use this config to connect to Claude Code.',
+          zh: '保存 token 后，Dardanus 会启动 Telegram polling worker，并把收到的消息转给 Claude Code。',
+          en: 'After saving the token, Dardanus starts the Telegram polling worker and forwards messages to Claude Code.',
         },
         guideUrl: 'https://core.telegram.org/bots/api',
         fields: [
@@ -260,8 +260,14 @@ const SETUP_CLIENTS: SetupClient[] = [
             placeholder: { zh: 'https://api.telegram.org', en: 'https://api.telegram.org' },
             optional: true,
           },
+          {
+            key: 'pollingTimeoutSeconds',
+            label: { zh: 'Polling timeout 秒数', en: 'Polling timeout seconds' },
+            placeholder: { zh: '30', en: '30' },
+            optional: true,
+          },
         ],
-        action: { zh: '保存 Telegram 档案', en: 'Save Telegram profile' },
+        action: { zh: '保存并启动 Telegram', en: 'Save and start Telegram' },
       },
     ],
   },
@@ -662,7 +668,7 @@ async function runSetupAction(action: string | undefined): Promise<void> {
     startSetupLoading();
     try {
       const result = await saveSetupConfig(collectSetupConfig());
-      if (selectedSetupChannel === 'feishu' || selectedSetupChannel === 'wecom') {
+      if (selectedSetupChannel === 'feishu' || selectedSetupChannel === 'wecom' || selectedSetupChannel === 'telegram') {
         await startDaemon();
         stopSetupLoading(`${result}\n${text(SETUP_COPY.loadingDone)}`);
       } else {
