@@ -12,6 +12,8 @@ import { buildPrompt } from './feishu/prompt.js';
 import { downloadMessageResource, sendTextMessage } from './feishu/send.js';
 import { createWebhookServer, type FeishuIncomingMessage } from './feishu/webhook.js';
 import { claudeQuery } from './claude/provider.js';
+import { getWeComBridgeState, getWeComClaudeState, getWeComLastMessageType, weComConfigError } from './wecom/runtime.js';
+import { getTelegramBridgeState, getTelegramClaudeState, getTelegramLastMessageType, telegramConfigError } from './telegram/runtime.js';
 
 const BRIDGE_VERSION = '0.1.0';
 
@@ -93,7 +95,25 @@ async function runStart(): Promise<void> {
     version: BRIDGE_VERSION,
     getBridgeState: () => (isBridgeReady(config) ? 'online' : 'offline'),
     getBridgeError: () => bridgeReadinessError(config),
-    getTunnelState: detectTunnelState,
+    getTunnelState: () => (config.activeChannel === 'wecom' || config.activeChannel === 'telegram' ? 'online' : detectTunnelState()),
+    getClaudeState: () => {
+      if (config.activeChannel === 'wecom') {
+        return getWeComClaudeState();
+      }
+      if (config.activeChannel === 'telegram') {
+        return getTelegramClaudeState();
+      }
+      return undefined;
+    },
+    getLastMessageType: () => {
+      if (config.activeChannel === 'wecom') {
+        return getWeComLastMessageType();
+      }
+      if (config.activeChannel === 'telegram') {
+        return getTelegramLastMessageType();
+      }
+      return undefined;
+    },
   });
 
   const server = createWebhookServer({
@@ -209,6 +229,23 @@ function isBridgeReady(config: ReturnType<typeof loadConfig>): boolean {
 }
 
 function bridgeReadinessError(config: ReturnType<typeof loadConfig>): string | null {
+  if (config.activeChannel === 'wecom') {
+    const configError = weComConfigError(config);
+    if (configError) {
+      return configError;
+    }
+    return getWeComBridgeState() === 'online' ? null : 'WeCom long connection is offline';
+  }
+  if (config.activeChannel === 'telegram') {
+    const configError = telegramConfigError(config);
+    if (configError) {
+      return configError;
+    }
+    return getTelegramBridgeState() === 'online' ? null : 'Telegram polling is offline';
+  }
+  if (config.activeChannel === 'wechat') {
+    return `${config.activeChannel} channel runtime is not implemented yet`;
+  }
   if (!config.appId || !config.appSecret) {
     return 'Feishu app credentials are missing';
   }

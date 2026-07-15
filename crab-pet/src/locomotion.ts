@@ -17,6 +17,7 @@ export type CrawlDirection = -1 | 1;
 
 const CRAWL_SPEED_PX_PER_SEC = 16;
 const CRAWL_TICK_MS = 250;
+const CRAWL_EDGE_PADDING_PX = 16;
 
 export function nextCrawlStep(input: {
   position: Point;
@@ -26,19 +27,17 @@ export function nextCrawlStep(input: {
   windowSize: Size;
   workArea: WorkArea;
 }): { position: Point; direction: CrawlDirection } {
-  const minX = input.workArea.x;
-  const maxX = input.workArea.x + Math.max(0, input.workArea.width - input.windowSize.width);
-  const deltaX = Math.round((input.speedPxPerSec * input.elapsedMs) / 1_000) * input.direction;
+  const minX = input.workArea.x + CRAWL_EDGE_PADDING_PX;
+  const maxX =
+    input.workArea.x + Math.max(0, input.workArea.width - input.windowSize.width - CRAWL_EDGE_PADDING_PX);
+  const deltaX = -Math.round((input.speedPxPerSec * input.elapsedMs) / 1_000);
   const proposedX = input.position.x + deltaX;
 
   if (proposedX <= minX) {
-    return { position: { x: minX, y: input.position.y }, direction: 1 };
-  }
-  if (proposedX >= maxX) {
     return { position: { x: maxX, y: input.position.y }, direction: -1 };
   }
 
-  return { position: { x: proposedX, y: input.position.y }, direction: input.direction };
+  return { position: { x: proposedX, y: input.position.y }, direction: -1 };
 }
 
 export function createCrawlLocomotion(): {
@@ -47,7 +46,7 @@ export function createCrawlLocomotion(): {
 } {
   const appWindow = getCurrentWindow();
   let timer: number | undefined;
-  let direction: CrawlDirection = 1;
+  let direction: CrawlDirection = -1;
   let lastTickMs = Date.now();
   let moving = false;
 

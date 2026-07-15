@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Feishu Crab Pet",
+  "productName": "Dardanus",
   "version": "0.1.0",
   "identifier": "com.feishu-claude-code.crab-pet",
   "build": {
@@ -14,10 +14,10 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Feishu Crab Pet",
+        "title": "Dardanus",
         "label": "main",
-        "width": 180,
-        "height": 150,
+        "width": 160,
+        "height": 124,
         "decorations": false,
         "transparent": true,
         "backgroundColor": [0, 0, 0, 0],

@@ -29,18 +29,90 @@ cloudflared_status() {
   fi
 }
 
+cloudflared_wait_until_running() {
+  local attempts="${1:-10}"
+  local i
+  for ((i = 0; i < attempts; i++)); do
+    if [ -x "$TUNNEL_SCRIPT" ] && "$TUNNEL_SCRIPT" status | grep -q "cloudflared tunnel: running"; then
+      return 0
+    fi
+    if /usr/sbin/lsof -tiTCP:20241 -sTCP:LISTEN >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 cloudflared_stop() {
   if [ -x "$TUNNEL_SCRIPT" ]; then
     "$TUNNEL_SCRIPT" stop
   fi
 }
 
+resolve_node_bin() {
+  if [ -x "${NODE_BIN:-}" ]; then
+    echo "$NODE_BIN"
+    return
+  fi
+  if command -v node >/dev/null 2>&1; then
+    command -v node
+    return
+  fi
+  for candidate in \
+    "${HOME}/.nvm/versions/node/v22.19.0/bin/node" \
+    "/opt/homebrew/bin/node" \
+    "/usr/local/bin/node" \
+    "/usr/bin/node"
+  do
+    if [ -x "$candidate" ]; then
+      echo "$candidate"
+      return
+    fi
+  done
+  echo ""
+}
+
 bridge_stop_orphans() {
   local bridge_pid
-  bridge_pid="$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)"
+  bridge_pid="$(/usr/sbin/lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)"
   if [ -n "$bridge_pid" ]; then
     kill $bridge_pid 2>/dev/null || true
   fi
+
+  local stale_bridge_pids
+  stale_bridge_pids="$(/usr/bin/pgrep -f "${PROJECT_DIR}/dist/main.js start" 2>/dev/null || true)"
+  if [ -n "$stale_bridge_pids" ]; then
+    kill $stale_bridge_pids 2>/dev/null || true
+  fi
+}
+
+bridge_wait_until_stopped() {
+  local attempts="${1:-10}"
+  local i
+  for ((i = 0; i < attempts; i++)); do
+    if ! /usr/sbin/lsof -tiTCP:8787 -sTCP:LISTEN >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+bridge_health_ok() {
+  /usr/bin/curl -fsS --max-time 2 "http://127.0.0.1:8787/health" >/dev/null 2>&1
+}
+
+bridge_wait_until_running() {
+  local attempts="${1:-20}"
+  local i
+  for ((i = 0; i < attempts; i++)); do
+    if bridge_health_ok; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
 }
 
 macos_plist_label() {
@@ -67,6 +139,14 @@ macos_tunnel_label() {
   echo "com.feishu-claude-code.cloudflared"
 }
 
+wecom_label() {
+  echo "com.feishu-claude-code.wecom-long-connection"
+}
+
+telegram_label() {
+  echo "com.feishu-claude-code.telegram-polling"
+}
+
 macos_bridge_plist_path() {
   echo "$(macos_launchd_dir)/$(macos_bridge_label).plist"
 }
@@ -75,25 +155,189 @@ macos_tunnel_plist_path() {
   echo "$(macos_launchd_dir)/$(macos_tunnel_label).plist"
 }
 
+wecom_plist_path() {
+  echo "$(macos_launchd_dir)/$(wecom_label).plist"
+}
+
+telegram_plist_path() {
+  echo "$(macos_launchd_dir)/$(telegram_label).plist"
+}
+
+wecom_pid_file() {
+  echo "${DATA_DIR}/wecom-long-connection.pid"
+}
+
+telegram_pid_file() {
+  echo "${DATA_DIR}/telegram-polling.pid"
+}
+
+wecom_is_configured() {
+  local node_bin="$1"
+  DATA_DIR="$DATA_DIR" "$node_bin" -e '
+const fs = require("fs");
+const path = require("path");
+try {
+  const config = JSON.parse(fs.readFileSync(path.join(process.env.DATA_DIR, "config.json"), "utf8"));
+  const channel = config.channels && config.channels.wecom;
+  process.exit(config.activeChannel === "wecom" && channel && channel.status === "ready" && channel.login === "long_connection" && channel.botId && channel.secret ? 0 : 1);
+} catch {
+  process.exit(1);
+}
+' >/dev/null 2>&1
+}
+
+telegram_is_configured() {
+  local node_bin="$1"
+  DATA_DIR="$DATA_DIR" "$node_bin" -e '
+const fs = require("fs");
+const path = require("path");
+try {
+  const config = JSON.parse(fs.readFileSync(path.join(process.env.DATA_DIR, "config.json"), "utf8"));
+  const channel = config.channels && config.channels.telegram;
+  process.exit(config.activeChannel === "telegram" && channel && channel.status === "ready" && (channel.login === "polling" || channel.mode === "polling") && channel.botToken ? 0 : 1);
+} catch {
+  process.exit(1);
+}
+' >/dev/null 2>&1
+}
+
+wecom_stop_pid_file() {
+  local pid_file="$(wecom_pid_file)"
+  if [ -f "$pid_file" ]; then
+    local pid
+    pid="$(cat "$pid_file" 2>/dev/null || true)"
+    if [ -n "$pid" ]; then
+      kill "$pid" 2>/dev/null || true
+    fi
+    rm -f "$pid_file"
+  fi
+}
+
+telegram_stop_pid_file() {
+  local pid_file="$(telegram_pid_file)"
+  if [ -f "$pid_file" ]; then
+    local pid
+    pid="$(cat "$pid_file" 2>/dev/null || true)"
+    if [ -n "$pid" ]; then
+      kill "$pid" 2>/dev/null || true
+    fi
+    rm -f "$pid_file"
+  fi
+}
+
+wecom_stop_orphans() {
+  local stale_pids
+  stale_pids="$(/usr/bin/pgrep -f "${PROJECT_DIR}/dist/wecom/long-connection.js" 2>/dev/null || true)"
+  if [ -n "$stale_pids" ]; then
+    kill $stale_pids 2>/dev/null || true
+  fi
+}
+
+telegram_stop_orphans() {
+  local stale_pids
+  stale_pids="$(/usr/bin/pgrep -f "${PROJECT_DIR}/dist/telegram/polling.js" 2>/dev/null || true)"
+  if [ -n "$stale_pids" ]; then
+    kill $stale_pids 2>/dev/null || true
+  fi
+}
+
+wecom_status() {
+  local node_bin="$(resolve_node_bin)"
+  if [ -z "$node_bin" ] || ! wecom_is_configured "$node_bin"; then
+    echo "wecom long connection: not configured"
+    return
+  fi
+
+  if launchctl print "gui/$(id -u)/$(wecom_label)" &>/dev/null || /usr/bin/pgrep -f "${PROJECT_DIR}/dist/wecom/long-connection.js" >/dev/null 2>&1; then
+    echo "wecom long connection: running"
+  else
+    echo "wecom long connection: not running"
+  fi
+}
+
+telegram_status() {
+  local node_bin="$(resolve_node_bin)"
+  if [ -z "$node_bin" ] || ! telegram_is_configured "$node_bin"; then
+    echo "telegram polling: not configured"
+    return
+  fi
+
+  if launchctl print "gui/$(id -u)/$(telegram_label)" &>/dev/null || /usr/bin/pgrep -f "${PROJECT_DIR}/dist/telegram/polling.js" >/dev/null 2>&1; then
+    echo "telegram polling: running"
+  else
+    echo "telegram polling: not running"
+  fi
+}
+
 macos_is_loaded() {
   launchctl print "gui/$(id -u)/$(macos_bridge_label)" &>/dev/null
 }
 
+bridge_stop_pid_file() {
+  local pid_file="$(macos_pid_file)"
+  if [ -f "$pid_file" ]; then
+    local pid
+    pid="$(cat "$pid_file" 2>/dev/null || true)"
+    if [ -n "$pid" ]; then
+      kill "$pid" 2>/dev/null || true
+    fi
+    rm -f "$pid_file"
+  fi
+}
+
+macos_bootstrap() {
+  local label="$1"
+  local plist="$2"
+  local domain="gui/$(id -u)"
+  local service="${domain}/${label}"
+  local attempt
+
+  for attempt in 1 2 3; do
+    if launchctl bootstrap "$domain" "$plist"; then
+      return 0
+    fi
+    if launchctl print "$service" &>/dev/null; then
+      launchctl kickstart -k "$service" 2>/dev/null || true
+      return 0
+    fi
+    sleep 1
+  done
+
+  launchctl bootstrap "$domain" "$plist"
+}
+
 macos_start() {
-  local node_bin="$(command -v node || echo '/usr/local/bin/node')"
+  local node_bin="$(resolve_node_bin)"
   local launchd_dir="$(macos_launchd_dir)"
-  local bridge_label="$(macos_bridge_label)"
   local tunnel_label="$(macos_tunnel_label)"
-  local bridge_plist="$(macos_bridge_plist_path)"
   local tunnel_plist="$(macos_tunnel_plist_path)"
+  local wecom_service_label="$(wecom_label)"
+  local wecom_plist="$(wecom_plist_path)"
+  local telegram_service_label="$(telegram_label)"
+  local telegram_plist="$(telegram_plist_path)"
+  local pid_file="$(macos_pid_file)"
+
+  if [ -z "$node_bin" ]; then
+    echo "node not found. Install Node.js or set NODE_BIN to an executable node path."
+    exit 1
+  fi
 
   mkdir -p "$DATA_DIR/logs" "$launchd_dir"
   load_env_file
-  bridge_stop_orphans
-  cloudflared_stop
 
-  launchctl bootout "gui/$(id -u)/${bridge_label}" 2>/dev/null || true
   launchctl bootout "gui/$(id -u)/${tunnel_label}" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/${wecom_service_label}" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/${telegram_service_label}" 2>/dev/null || true
+  sleep 1
+  launchctl bootout "gui/$(id -u)/$(macos_bridge_label)" 2>/dev/null || true
+  bridge_stop_pid_file
+  wecom_stop_pid_file
+  telegram_stop_pid_file
+  bridge_stop_orphans
+  wecom_stop_orphans
+  telegram_stop_orphans
+  bridge_wait_until_stopped 10 || true
+  cloudflared_stop
 
   cat > "$tunnel_plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -117,78 +361,126 @@ macos_start() {
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>${HOME}/.local/bin:${node_bin%/*}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <string>${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
 </dict>
 </plist>
 PLIST
 
-  cat > "$bridge_plist" <<PLIST
+  macos_bootstrap "$tunnel_label" "$tunnel_plist"
+  if wecom_is_configured "$node_bin"; then
+    cat > "$wecom_plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>${bridge_label}</string>
+  <string>${wecom_service_label}</string>
   <key>ProgramArguments</key>
   <array>
     <string>${node_bin}</string>
-    <string>${PROJECT_DIR}/dist/main.js</string>
-    <string>start</string>
+    <string>${PROJECT_DIR}/dist/wecom/long-connection.js</string>
   </array>
   <key>WorkingDirectory</key>
   <string>${PROJECT_DIR}</string>
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>${DATA_DIR}/logs/stdout.log</string>
+  <string>${DATA_DIR}/logs/wecom-long-connection.log</string>
   <key>StandardErrorPath</key>
-  <string>${DATA_DIR}/logs/stderr.log</string>
+  <string>${DATA_DIR}/logs/wecom-long-connection.log</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>${HOME}/.local/bin:${node_bin%/*}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
-    <key>FEISHU_APP_ID</key>
-    <string>${FEISHU_APP_ID:-}</string>
-    <key>FEISHU_APP_SECRET</key>
-    <string>${FEISHU_APP_SECRET:-}</string>
-    <key>FEISHU_VERIFICATION_TOKEN</key>
-    <string>${FEISHU_VERIFICATION_TOKEN:-}</string>
-    <key>FEISHU_ENCRYPT_KEY</key>
-    <string>${FEISHU_ENCRYPT_KEY:-}</string>
-    <key>FEISHU_PUBLIC_BASE_URL</key>
-    <string>${FEISHU_PUBLIC_BASE_URL:-}</string>
-    <key>FEISHU_AUDIO_TRANSCRIPTION_COMMAND</key>
-    <string>${FEISHU_AUDIO_TRANSCRIPTION_COMMAND:-}</string>
+    <string>${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
 </dict>
 </plist>
 PLIST
-
-  launchctl bootstrap "gui/$(id -u)" "$tunnel_plist"
-  launchctl bootstrap "gui/$(id -u)" "$bridge_plist"
+    macos_bootstrap "$wecom_service_label" "$wecom_plist"
+  fi
+  if telegram_is_configured "$node_bin"; then
+    cat > "$telegram_plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${telegram_service_label}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${node_bin}</string>
+    <string>${PROJECT_DIR}/dist/telegram/polling.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>${PROJECT_DIR}</string>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>${DATA_DIR}/logs/telegram-polling.log</string>
+  <key>StandardErrorPath</key>
+  <string>${DATA_DIR}/logs/telegram-polling.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>
+PLIST
+    macos_bootstrap "$telegram_service_label" "$telegram_plist"
+  fi
+  (
+    cd "$PROJECT_DIR"
+    nohup env \
+      PATH="${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+      FEISHU_APP_ID="${FEISHU_APP_ID:-}" \
+      FEISHU_APP_SECRET="${FEISHU_APP_SECRET:-}" \
+      FEISHU_VERIFICATION_TOKEN="${FEISHU_VERIFICATION_TOKEN:-}" \
+      FEISHU_ENCRYPT_KEY="${FEISHU_ENCRYPT_KEY:-}" \
+      FEISHU_PUBLIC_BASE_URL="${FEISHU_PUBLIC_BASE_URL:-}" \
+      FEISHU_AUDIO_TRANSCRIPTION_COMMAND="${FEISHU_AUDIO_TRANSCRIPTION_COMMAND:-}" \
+      "$node_bin" "${PROJECT_DIR}/dist/main.js" start >> "${DATA_DIR}/logs/stdout.log" 2>> "${DATA_DIR}/logs/stderr.log" &
+    echo $! > "$pid_file"
+  )
+  bridge_wait_until_running 60 || {
+    echo "bridge did not become healthy on http://127.0.0.1:8787/health"
+    exit 1
+  }
+  cloudflared_wait_until_running 30 || true
   echo "Started feishu-claude-code daemon"
   cloudflared_status
+  wecom_status
+  telegram_status
 }
 
 macos_stop() {
   local plist_path="$(macos_plist_path)"
   launchctl bootout "gui/$(id -u)/$(macos_bridge_label)" 2>/dev/null || true
   launchctl bootout "gui/$(id -u)/$(macos_tunnel_label)" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/$(wecom_label)" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/$(telegram_label)" 2>/dev/null || true
   rm -f "$plist_path"
-  rm -f "$(macos_bridge_plist_path)" "$(macos_tunnel_plist_path)"
+  rm -f "$(macos_bridge_plist_path)" "$(macos_tunnel_plist_path)" "$(wecom_plist_path)" "$(telegram_plist_path)"
+  bridge_stop_pid_file
+  wecom_stop_pid_file
+  telegram_stop_pid_file
   cloudflared_stop
   bridge_stop_orphans
+  wecom_stop_orphans
+  telegram_stop_orphans
   echo "Stopped feishu-claude-code daemon"
 }
 
 macos_status() {
-  if macos_is_loaded; then
+  if bridge_health_ok; then
     echo "Running"
   else
     echo "Not running"
   fi
   cloudflared_status
+  wecom_status
+  telegram_status
 }
 
 macos_logs() {
@@ -202,6 +494,14 @@ macos_logs() {
     echo "=== cloudflared.log ==="
     tail -30 "${DATA_DIR}/logs/cloudflared.log"
   fi
+  if [ -f "${DATA_DIR}/logs/wecom-long-connection.log" ]; then
+    echo "=== wecom-long-connection.log ==="
+    tail -30 "${DATA_DIR}/logs/wecom-long-connection.log"
+  fi
+  if [ -f "${DATA_DIR}/logs/telegram-polling.log" ]; then
+    echo "=== telegram-polling.log ==="
+    tail -30 "${DATA_DIR}/logs/telegram-polling.log"
+  fi
 }
 
 linux_pid_file() {
@@ -210,7 +510,12 @@ linux_pid_file() {
 
 linux_start() {
   local pid_file="$(linux_pid_file)"
-  local node_bin="$(command -v node || echo '/usr/bin/node')"
+  local node_bin="$(resolve_node_bin)"
+
+  if [ -z "$node_bin" ]; then
+    echo "node not found. Install Node.js or set NODE_BIN to an executable node path."
+    exit 1
+  fi
 
   if [ -f "$pid_file" ]; then
     local old_pid=$(cat "$pid_file" 2>/dev/null)
@@ -224,6 +529,18 @@ linux_start() {
 
   mkdir -p "$DATA_DIR/logs"
   load_env_file
+  if wecom_is_configured "$node_bin"; then
+    nohup env \
+      PATH="${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+      "$node_bin" "${PROJECT_DIR}/dist/wecom/long-connection.js" >> "$DATA_DIR/logs/wecom-long-connection.log" 2>&1 &
+    echo $! > "$(wecom_pid_file)"
+  fi
+  if telegram_is_configured "$node_bin"; then
+    nohup env \
+      PATH="${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+      "$node_bin" "${PROJECT_DIR}/dist/telegram/polling.js" >> "$DATA_DIR/logs/telegram-polling.log" 2>&1 &
+    echo $! > "$(telegram_pid_file)"
+  fi
   nohup env \
     FEISHU_APP_ID="${FEISHU_APP_ID:-}" \
     FEISHU_APP_SECRET="${FEISHU_APP_SECRET:-}" \
@@ -246,7 +563,11 @@ linux_stop() {
     rm -f "$pid_file"
   fi
   cloudflared_stop
+  wecom_stop_pid_file
+  telegram_stop_pid_file
   bridge_stop_orphans
+  wecom_stop_orphans
+  telegram_stop_orphans
   echo "Stopped feishu-claude-code daemon"
 }
 
@@ -263,6 +584,8 @@ linux_status() {
     echo "Not running"
   fi
   cloudflared_status
+  wecom_status
+  telegram_status
 }
 
 linux_logs() {
@@ -275,6 +598,14 @@ linux_logs() {
   if [ -f "${DATA_DIR}/logs/cloudflared.log" ]; then
     echo "=== cloudflared.log ==="
     tail -30 "${DATA_DIR}/logs/cloudflared.log"
+  fi
+  if [ -f "${DATA_DIR}/logs/wecom-long-connection.log" ]; then
+    echo "=== wecom-long-connection.log ==="
+    tail -30 "${DATA_DIR}/logs/wecom-long-connection.log"
+  fi
+  if [ -f "${DATA_DIR}/logs/telegram-polling.log" ]; then
+    echo "=== telegram-polling.log ==="
+    tail -30 "${DATA_DIR}/logs/telegram-polling.log"
   fi
 }
 

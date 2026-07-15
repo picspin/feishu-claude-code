@@ -15,6 +15,25 @@ export interface Config {
   appSecret?: string;
   encryptKey?: string;
   verificationToken?: string;
+  activeChannel?: 'feishu' | 'wechat' | 'wecom' | 'telegram';
+  channels?: Record<
+    string,
+    {
+      status?: 'planned' | 'ready';
+      bridge?: 'claude-code';
+      login?: 'qr' | 'webhook' | 'long_connection' | 'polling';
+      displayName?: string;
+      callbackUrl?: string;
+      botId?: string;
+      secret?: string;
+      websocketUrl?: string;
+      heartbeatSeconds?: number;
+      botToken?: string;
+      apiBaseUrl?: string;
+      mode?: 'polling' | 'webhook' | 'long_connection';
+      pollingTimeoutSeconds?: number;
+    }
+  >;
 }
 
 const defaultConfig: Config = {

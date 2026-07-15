@@ -1,8 +1,8 @@
 use tauri::{window::Color, LogicalSize, PhysicalPosition, WebviewWindow};
 
-const PET_WINDOW_WIDTH: f64 = 180.0;
-const PET_WINDOW_HEIGHT: f64 = 150.0;
-const DOCK_GAP: i32 = 36;
+const PET_WINDOW_WIDTH: f64 = 160.0;
+const PET_WINDOW_HEIGHT: f64 = 124.0;
+const DOCK_GAP: i32 = 28;
 
 pub fn position_near_dock(window: WebviewWindow) -> Result<(), String> {
     prepare_transparent_pet_window(&window)?;
@@ -74,21 +74,21 @@ mod tests {
     #[test]
     fn positions_window_above_bottom_dock_inside_work_area() {
         assert_eq!(
-            dock_safe_position((0, 25, 1440, 875), (180, 150), 36),
-            (630, 714)
+            dock_safe_position((0, 25, 1440, 875), (160, 124), 28),
+            (640, 748)
         );
     }
 
     #[test]
     fn includes_monitor_origin_for_external_displays() {
         assert_eq!(
-            dock_safe_position((1440, 80, 1920, 1000), (180, 150), 36),
-            (2310, 894)
+            dock_safe_position((1440, 80, 1920, 1000), (160, 124), 28),
+            (2320, 928)
         );
     }
 
     #[test]
     fn converts_logical_pet_size_for_retina_positioning() {
-        assert_eq!(logical_to_physical_size((180.0, 150.0), 2.0), (360, 300));
+        assert_eq!(logical_to_physical_size((160.0, 124.0), 2.0), (320, 248));
     }
 }

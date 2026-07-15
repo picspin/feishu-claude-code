@@ -19,6 +19,28 @@ pub fn daemon_status() -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
 pub fn position_near_dock(window: tauri::WebviewWindow) -> Result<(), String> {
     crate::window::position_near_dock(window)
+}
+
+#[tauri::command]
+pub fn open_setup_guide(url: String) -> Result<(), String> {
+    crate::setup::open_setup_guide(&url)
+}
+
+#[tauri::command]
+pub fn save_setup_config(
+    config: std::collections::HashMap<String, String>,
+) -> Result<String, String> {
+    crate::setup::save_setup_config(config)
+}
+
+#[tauri::command]
+pub fn frontmost_window_bounds() -> Result<Option<crate::accessibility::WindowBounds>, String> {
+    crate::accessibility::frontmost_window_bounds()
 }
