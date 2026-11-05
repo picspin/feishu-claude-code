@@ -3,15 +3,14 @@ import { loadConfig, saveConfig } from './config.js';
 import { logger } from './logger.js';
 import { createSessionStore } from './session.js';
 import { createPermissionBroker } from './permission.js';
-import { routeCommand } from './commands/router.js';
 import { createBridgeStatusTracker } from './bridge/status.js';
 import { detectTunnelState } from './bridge/tunnel.js';
 import { transcribeAudio } from './audio/transcribe.js';
 import { saveArtifact, type SavedArtifact } from './feishu/artifacts.js';
-import { buildPrompt } from './feishu/prompt.js';
 import { downloadMessageResource, sendTextMessage } from './feishu/send.js';
 import { createWebhookServer, type FeishuIncomingMessage } from './feishu/webhook.js';
-import { claudeQuery } from './claude/provider.js';
+import { handleInboundTurn } from './core/inbound.js';
+import { readChannelEvents } from './core/channel-events.js';
 import { getWeComBridgeState, getWeComClaudeState, getWeComLastMessageType, weComConfigError } from './wecom/runtime.js';
 import { getTelegramBridgeState, getTelegramClaudeState, getTelegramLastMessageType, telegramConfigError } from './telegram/runtime.js';
 
@@ -32,9 +31,64 @@ async function runSetup(): Promise<void> {
   config.verificationToken = process.env.FEISHU_VERIFICATION_TOKEN || config.verificationToken;
   config.publicBaseUrl = process.env.FEISHU_PUBLIC_BASE_URL || config.publicBaseUrl;
   config.audioTranscriptionCommand = process.env.FEISHU_AUDIO_TRANSCRIPTION_COMMAND || config.audioTranscriptionCommand;
+
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (telegramToken) {
+    config.activeChannel = 'telegram';
+    config.channels = {
+      ...config.channels,
+      telegram: {
+        status: 'ready',
+        bridge: 'claude-code',
+        login: 'polling',
+        mode: 'polling',
+        displayName: 'Telegram Bot API',
+        botToken: telegramToken,
+        apiBaseUrl: process.env.TELEGRAM_API_BASE_URL || 'https://api.telegram.org',
+        pollingTimeoutSeconds: process.env.TELEGRAM_POLLING_TIMEOUT_SECONDS
+          ? Number(process.env.TELEGRAM_POLLING_TIMEOUT_SECONDS)
+          : 30,
+      },
+    };
+  }
+
+  const wecomBotId = process.env.WECOM_BOT_ID;
+  const wecomSecret = process.env.WECOM_BOT_SECRET;
+  if (wecomBotId && wecomSecret) {
+    config.activeChannel = 'wecom';
+    config.channels = {
+      ...config.channels,
+      wecom: {
+        status: 'ready',
+        bridge: 'claude-code',
+        login: 'long_connection',
+        displayName: '企业微信长连接',
+        botId: wecomBotId,
+        secret: wecomSecret,
+        websocketUrl: process.env.WECOM_WEBSOCKET_URL || 'wss://openws.work.weixin.qq.com',
+        heartbeatSeconds: process.env.WECOM_HEARTBEAT_SECONDS
+          ? Number(process.env.WECOM_HEARTBEAT_SECONDS)
+          : 30,
+      },
+    };
+  }
+
+  if (!config.activeChannel) {
+    config.activeChannel = 'feishu';
+  }
+
   saveConfig(config);
   console.log('已写入基础配置到 ~/.feishu-claude-code/config.json');
-  console.log(`请在飞书事件订阅中配置回调地址: ${getWebhookUrl(config)}`);
+  console.log(`activeChannel=${config.activeChannel}`);
+  if (config.activeChannel === 'feishu') {
+    console.log(`请在飞书事件订阅中配置回调地址: ${getWebhookUrl(config)}`);
+  } else if (config.activeChannel === 'telegram') {
+    console.log('Telegram polling 已配置。使用 npm run daemon -- start 启动 worker。');
+  } else if (config.activeChannel === 'wecom') {
+    console.log('企业微信长连接已配置。使用 npm run daemon -- start 启动 worker。');
+  } else if (config.activeChannel === 'wechat') {
+    console.log('微信个人号通道仍为 planned；当前仅保存档案，运行时尚未实现。');
+  }
 }
 
 async function downloadArtifacts(message: FeishuIncomingMessage, transcriptionCommand?: string): Promise<SavedArtifact[]> {
@@ -116,6 +170,22 @@ async function runStart(): Promise<void> {
     },
   });
 
+  const originalGetEvents = statusTracker.getEvents.bind(statusTracker);
+  const originalGetEventsJsonl = statusTracker.getEventsJsonl.bind(statusTracker);
+  const originalGetStatus = statusTracker.getStatus.bind(statusTracker);
+
+  statusTracker.getEvents = () => mergeEvents(originalGetEvents(), readChannelEvents());
+  statusTracker.getEventsJsonl = () => statusTracker.getEvents().map((event) => JSON.stringify(event)).join('\n');
+  statusTracker.getStatus = () => {
+    const status = originalGetStatus();
+    const merged = mergeEvents(originalGetEvents(), readChannelEvents());
+    const latest = merged[merged.length - 1];
+    if (latest && (!status.lastEventAt || latest.at > status.lastEventAt)) {
+      status.lastEventAt = latest.at;
+    }
+    return status;
+  };
+
   const server = createWebhookServer({
     port: config.port,
     path: config.webhookPath,
@@ -123,105 +193,55 @@ async function runStart(): Promise<void> {
     encryptKey: config.encryptKey,
     statusTracker,
     onMessage: async (message) => {
-      const { chatId } = message;
-      const session = sessionStore.load(chatId);
-      const messageText = message.text || '';
-      if (session.state === 'waiting_permission' && message.messageType === 'text') {
-        const normalized = messageText.trim().toLowerCase();
-        if (['y', 'yes', 'approve', '允许', '同意'].includes(normalized)) {
-          permissionBroker.resolveApproval(chatId, true);
-          await sendTextMessage('chat_id', chatId, '已批准，继续执行。');
-          return;
-        }
-        if (['n', 'no', 'deny', '拒绝', '不同意'].includes(normalized)) {
-          permissionBroker.resolveApproval(chatId, false);
-          await sendTextMessage('chat_id', chatId, '已拒绝本次操作。');
-          return;
-        }
-        await sendTextMessage('chat_id', chatId, '当前正在等待权限审批，请回复 y / n。');
-        return;
-      }
-
-      const command = message.messageType === 'text' ? routeCommand(messageText, session) : { handled: false as const };
+      // Feishu path owns in-memory status tracker events; skip shared channel event file duplication.
       const artifacts = await downloadArtifacts(message, config.audioTranscriptionCommand);
-      const audioTranscript = artifacts
-        .filter((artifact) => (artifact.kind === 'audio' || artifact.kind === 'media') && artifact.transcriptText)
-        .map((artifact) => artifact.transcriptText?.trim())
-        .filter((value): value is string => !!value)
-        .join('\n');
-      const effectiveMessageText = messageText || audioTranscript || `[${message.messageType}]`;
-      if (command.handled) {
-        if (command.clearSession) {
-          session.sdkSessionId = undefined;
-          session.chatHistory = [];
-          session.state = 'idle';
-        }
-        if (command.nextPermissionMode) {
-          session.permissionMode = command.nextPermissionMode;
-        }
-        if (command.nextModel) {
-          session.model = command.nextModel;
-        }
-        sessionStore.save(chatId, session);
-        if (command.reply) {
-          await sendTextMessage('chat_id', chatId, command.reply);
-        }
-        if (!command.nextPrompt) {
-          return;
-        }
-      }
-
-      session.state = 'processing';
-      sessionStore.addChatMessage(session, 'user', effectiveMessageText);
-      sessionStore.save(chatId, session);
-      statusTracker.recordClaudeStarted();
-
-      try {
-        const prompt = command.handled && command.nextPrompt ? command.nextPrompt : buildPrompt({ ...message, text: effectiveMessageText }, artifacts);
-        const result = await claudeQuery({
-          prompt,
-          cwd: session.workingDirectory || config.workingDirectory,
-          resume: session.sdkSessionId,
-          model: session.model || config.model,
-          systemPrompt: config.systemPrompt,
-          permissionMode: session.permissionMode || config.permissionMode,
-          onPermissionRequest: async (toolName, toolInput) => {
-            session.state = 'waiting_permission';
-            sessionStore.save(chatId, session);
-            await sendTextMessage('chat_id', chatId, `Claude 请求权限:\n${toolName}\n${toolInput}\n回复 y / n`);
-            const allowed = await permissionBroker.waitForApproval(chatId);
-            session.state = 'processing';
-            sessionStore.save(chatId, session);
-            return allowed;
-          },
-        });
-
-        session.sdkSessionId = result.sessionId || session.sdkSessionId;
-        session.state = 'idle';
-        sessionStore.addChatMessage(session, 'assistant', result.text || '(空回复)');
-        sessionStore.save(chatId, session);
-        await sendTextMessage('chat_id', chatId, result.text || '(空回复)');
-        statusTracker.recordClaudeCompleted();
-      } catch (error) {
-        session.state = 'idle';
-        sessionStore.save(chatId, session);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        statusTracker.recordError(error);
-        logger.error('Message handling failed', {
-          chatId,
-          messageId: message.messageId,
-          messageType: message.messageType,
-          error: errorMessage,
-        });
-        await sendTextMessage('chat_id', chatId, `处理失败: ${errorMessage}`);
-      }
+      await handleInboundTurn({
+        sessionKey: message.chatId,
+        messageType: message.messageType,
+        messageText: message.text || '',
+        artifacts,
+        links: message.links,
+        config,
+        sessionStore,
+        permissionBroker,
+        reply: async (text) => {
+          await sendTextMessage('chat_id', message.chatId, text);
+        },
+        emitChannelEvents: false,
+        onMessageReceived: (messageType, summary) => statusTracker.recordMessageReceived(messageType, summary),
+        onClaudeStarted: () => statusTracker.recordClaudeStarted(),
+        onClaudeCompleted: () => statusTracker.recordClaudeCompleted(),
+        onError: (error) => {
+          statusTracker.recordError(error);
+          logger.error('Message handling failed', {
+            chatId: message.chatId,
+            messageId: message.messageId,
+            messageType: message.messageType,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        },
+      });
     },
   });
 
   await server.listen();
-  logger.info('Feishu Claude Code bridge started', { port: config.port, path: config.webhookPath, publicWebhookUrl: getWebhookUrl(config) });
+  logger.info('Feishu Claude Code bridge started', {
+    port: config.port,
+    path: config.webhookPath,
+    publicWebhookUrl: getWebhookUrl(config),
+    activeChannel: config.activeChannel || 'feishu',
+  });
   console.log(`Listening on http://127.0.0.1:${config.port}${config.webhookPath}`);
   console.log(`Public webhook URL: ${getWebhookUrl(config)}`);
+  console.log(`activeChannel: ${config.activeChannel || 'feishu'}`);
+  // silence unused originalGetEventsJsonl lint when tree-shaken differently
+  void originalGetEventsJsonl;
+}
+
+function mergeEvents<T extends { at: string }>(primary: T[], secondary: T[]): T[] {
+  return [...primary, ...secondary]
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .slice(-50);
 }
 
 function isBridgeReady(config: ReturnType<typeof loadConfig>): boolean {
@@ -244,7 +264,7 @@ function bridgeReadinessError(config: ReturnType<typeof loadConfig>): string | n
     return getTelegramBridgeState() === 'online' ? null : 'Telegram polling is offline';
   }
   if (config.activeChannel === 'wechat') {
-    return `${config.activeChannel} channel runtime is not implemented yet`;
+    return 'WeChat personal channel runtime is not implemented yet (planned QR-login bundle)';
   }
   if (!config.appId || !config.appSecret) {
     return 'Feishu app credentials are missing';

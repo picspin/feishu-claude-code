@@ -201,6 +201,22 @@ try {
 ' >/dev/null 2>&1
 }
 
+needs_cloudflared_tunnel() {
+  local node_bin="$1"
+  DATA_DIR="$DATA_DIR" "$node_bin" -e '
+const fs = require("fs");
+const path = require("path");
+try {
+  const config = JSON.parse(fs.readFileSync(path.join(process.env.DATA_DIR, "config.json"), "utf8"));
+  const channel = config.activeChannel || "feishu";
+  // Telegram polling and WeCom long-connection do not need a public HTTPS webhook tunnel.
+  process.exit(channel === "telegram" || channel === "wecom" ? 1 : 0);
+} catch {
+  process.exit(0);
+}
+' >/dev/null 2>&1
+}
+
 wecom_stop_pid_file() {
   local pid_file="$(wecom_pid_file)"
   if [ -f "$pid_file" ]; then
@@ -367,7 +383,11 @@ macos_start() {
 </plist>
 PLIST
 
-  macos_bootstrap "$tunnel_label" "$tunnel_plist"
+  if needs_cloudflared_tunnel "$node_bin"; then
+    macos_bootstrap "$tunnel_label" "$tunnel_plist"
+  else
+    echo "Skipping cloudflared tunnel for active non-webhook channel"
+  fi
   if wecom_is_configured "$node_bin"; then
     cat > "$wecom_plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -447,7 +467,9 @@ PLIST
     echo "bridge did not become healthy on http://127.0.0.1:8787/health"
     exit 1
   }
-  cloudflared_wait_until_running 30 || true
+  if needs_cloudflared_tunnel "$node_bin"; then
+    cloudflared_wait_until_running 30 || true
+  fi
   echo "Started feishu-claude-code daemon"
   cloudflared_status
   wecom_status
@@ -541,18 +563,33 @@ linux_start() {
       "$node_bin" "${PROJECT_DIR}/dist/telegram/polling.js" >> "$DATA_DIR/logs/telegram-polling.log" 2>&1 &
     echo $! > "$(telegram_pid_file)"
   fi
-  nohup env \
-    FEISHU_APP_ID="${FEISHU_APP_ID:-}" \
-    FEISHU_APP_SECRET="${FEISHU_APP_SECRET:-}" \
-    FEISHU_VERIFICATION_TOKEN="${FEISHU_VERIFICATION_TOKEN:-}" \
-    FEISHU_ENCRYPT_KEY="${FEISHU_ENCRYPT_KEY:-}" \
-    FEISHU_PUBLIC_BASE_URL="${FEISHU_PUBLIC_BASE_URL:-}" \
-    FEISHU_AUDIO_TRANSCRIPTION_COMMAND="${FEISHU_AUDIO_TRANSCRIPTION_COMMAND:-}" \
-    NODE_BIN="$node_bin" \
-    "$RUN_WITH_TUNNEL_SCRIPT" >> "$DATA_DIR/logs/stdout.log" 2>> "$DATA_DIR/logs/stderr.log" &
+  if needs_cloudflared_tunnel "$node_bin"; then
+    nohup env \
+      FEISHU_APP_ID="${FEISHU_APP_ID:-}" \
+      FEISHU_APP_SECRET="${FEISHU_APP_SECRET:-}" \
+      FEISHU_VERIFICATION_TOKEN="${FEISHU_VERIFICATION_TOKEN:-}" \
+      FEISHU_ENCRYPT_KEY="${FEISHU_ENCRYPT_KEY:-}" \
+      FEISHU_PUBLIC_BASE_URL="${FEISHU_PUBLIC_BASE_URL:-}" \
+      FEISHU_AUDIO_TRANSCRIPTION_COMMAND="${FEISHU_AUDIO_TRANSCRIPTION_COMMAND:-}" \
+      NODE_BIN="$node_bin" \
+      "$RUN_WITH_TUNNEL_SCRIPT" >> "$DATA_DIR/logs/stdout.log" 2>> "$DATA_DIR/logs/stderr.log" &
+  else
+    echo "Skipping cloudflared tunnel for active non-webhook channel"
+    nohup env \
+      PATH="${HOME}/.local/bin:${node_bin%/*}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+      FEISHU_APP_ID="${FEISHU_APP_ID:-}" \
+      FEISHU_APP_SECRET="${FEISHU_APP_SECRET:-}" \
+      FEISHU_VERIFICATION_TOKEN="${FEISHU_VERIFICATION_TOKEN:-}" \
+      FEISHU_ENCRYPT_KEY="${FEISHU_ENCRYPT_KEY:-}" \
+      FEISHU_PUBLIC_BASE_URL="${FEISHU_PUBLIC_BASE_URL:-}" \
+      FEISHU_AUDIO_TRANSCRIPTION_COMMAND="${FEISHU_AUDIO_TRANSCRIPTION_COMMAND:-}" \
+      "$node_bin" "${PROJECT_DIR}/dist/main.js" start >> "$DATA_DIR/logs/stdout.log" 2>> "$DATA_DIR/logs/stderr.log" &
+  fi
   echo $! > "$pid_file"
   echo "Started feishu-claude-code daemon (PID: $!)"
   cloudflared_status
+  wecom_status
+  telegram_status
 }
 
 linux_stop() {
