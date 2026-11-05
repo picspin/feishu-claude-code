@@ -35,7 +35,7 @@ export function deriveCrabState(input: {
     return 'sleep';
   }
 
-  if (hasRecentNonTextMessage(input.events, now)) {
+  if (hasRecentNonTextMessage(input.events, now) || hasRecentNonTextFromStatus(input.status, now)) {
     return 'wink';
   }
 
@@ -52,6 +52,14 @@ export function deriveCrabState(input: {
 
 function hasRecentNonTextMessage(events: BridgeEvent[], now: Date): boolean {
   return events.some((event) => event.type === 'message_received' && event.messageType !== 'text' && isRecent(event.at, now, 5_000));
+}
+
+/** Telegram/WeCom workers expose lastMessageType via /status rather than in-process events. */
+function hasRecentNonTextFromStatus(status: BridgeStatus, now: Date): boolean {
+  if (!status.lastMessageType || status.lastMessageType === 'text' || !status.lastEventAt) {
+    return false;
+  }
+  return isRecent(status.lastEventAt, now, 5_000);
 }
 
 function hasRecentCompletion(events: BridgeEvent[], now: Date): boolean {

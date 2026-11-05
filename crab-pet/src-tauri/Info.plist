@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Dardanus controls Apple Music (Music.app) when you choose Music actions from the pet menu, or when Wake-music is enabled.</string>
+  <key>NSAccessibilityUsageDescription</key>
+  <string>Dardanus optionally reads the frontmost window bounds so the crab can magnetically snap near your active work without covering it.</string>
+  <key>LSUIElement</key>
+  <true/>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+</dict>
+</plist>

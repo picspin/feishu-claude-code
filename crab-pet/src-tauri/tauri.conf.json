@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Dardanus",
   "version": "0.1.0",
-  "identifier": "com.feishu-claude-code.crab-pet",
+  "identifier": "com.hilbert.dardanus",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -29,12 +29,34 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src http://127.0.0.1:8787; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self' 'unsafe-eval' data: blob:; connect-src http://127.0.0.1:8787; style-src 'self' 'unsafe-inline'; media-src 'self' blob: data:"
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["app"],
-    "icon": ["icons/icon.png"]
+    "targets": ["app", "dmg"],
+    "category": "Utility",
+    "shortDescription": "macOS hermit crab pet that supervises a local Claude Code IM bridge",
+    "longDescription": "Dardanus is a Dock companion for the Feishu / Telegram / WeCom Claude Code bridge. It shows bridge activity with animated states, sound cues, and optional Apple Music controls.",
+    "copyright": "Copyright © Hilbert. MIT License.",
+    "icon": ["icons/icon.png"],
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "entitlements": "entitlements/app.entitlements",
+      "dmg": {
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        },
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        }
+      }
+    }
   }
 }

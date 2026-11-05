@@ -44,3 +44,23 @@ pub fn save_setup_config(
 pub fn frontmost_window_bounds() -> Result<Option<crate::accessibility::WindowBounds>, String> {
     crate::accessibility::frontmost_window_bounds()
 }
+
+#[tauri::command]
+pub fn music_status() -> Result<crate::music::MusicStatus, String> {
+    crate::music::status()
+}
+
+#[tauri::command]
+pub fn music_playpause() -> Result<crate::music::MusicStatus, String> {
+    crate::music::playpause()
+}
+
+#[tauri::command]
+pub fn music_play() -> Result<crate::music::MusicStatus, String> {
+    crate::music::play()
+}
+
+#[tauri::command]
+pub fn music_next() -> Result<crate::music::MusicStatus, String> {
+    crate::music::next_track()
+}

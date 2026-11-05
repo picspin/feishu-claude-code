@@ -7,6 +7,15 @@ export interface WindowBounds {
   height: number;
 }
 
+export interface MusicStatus {
+  installed: boolean;
+  running: boolean;
+  playing: boolean;
+  track?: string | null;
+  artist?: string | null;
+  message: string;
+}
+
 interface TauriGlobal {
   core?: {
     invoke?: Invoke;
@@ -52,4 +61,20 @@ export async function saveSetupConfig(config: Record<string, string>): Promise<s
 
 export async function frontmostWindowBounds(): Promise<WindowBounds | null> {
   return invoke<WindowBounds | null>('frontmost_window_bounds');
+}
+
+export async function musicStatus(): Promise<MusicStatus> {
+  return invoke<MusicStatus>('music_status');
+}
+
+export async function musicPlayPause(): Promise<MusicStatus> {
+  return invoke<MusicStatus>('music_playpause');
+}
+
+export async function musicPlay(): Promise<MusicStatus> {
+  return invoke<MusicStatus>('music_play');
+}
+
+export async function musicNext(): Promise<MusicStatus> {
+  return invoke<MusicStatus>('music_next');
 }

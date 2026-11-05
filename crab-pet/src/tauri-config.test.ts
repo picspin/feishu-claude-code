@@ -99,7 +99,7 @@ test('app ensures the bridge daemon and wires free pet dragging', () => {
   assert.doesNotMatch(app, /stopDaemon\(\)/);
 });
 
-test('right click opens a pet menu with wake, setup, reload, and quit actions', () => {
+test('right click opens a pet menu with wake, setup, reload, sound, music, and quit actions', () => {
   const app = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
@@ -107,6 +107,10 @@ test('right click opens a pet menu with wake, setup, reload, and quit actions', 
   assert.match(html, /data-menu-action="wake"/);
   assert.match(html, /data-menu-action="setup"/);
   assert.match(html, /data-menu-action="reload"/);
+  assert.match(html, /data-menu-action="toggle-sound"/);
+  assert.match(html, /data-menu-action="music-playpause"/);
+  assert.match(html, /data-menu-action="music-next"/);
+  assert.match(html, /data-menu-action="toggle-music-wake"/);
   assert.match(html, /data-menu-action="quit"/);
   assert.match(app, /showCrabMenu/);
   assert.match(app, /showSetupGuide/);
@@ -117,6 +121,8 @@ test('right click opens a pet menu with wake, setup, reload, and quit actions', 
   assert.match(app, /openSetupGuide/);
   assert.match(app, /showTransientBubble/);
   assert.match(app, /wakeBridgeFromSleep/);
+  assert.match(app, /createPetSoundBoard/);
+  assert.match(app, /musicPlayPause/);
   assert.match(app, /contextmenu/);
   assert.match(app, /event\.preventDefault\(\)/);
   assert.match(app, /startDaemon\(\)/);
@@ -125,15 +131,60 @@ test('right click opens a pet menu with wake, setup, reload, and quit actions', 
   assert.match(app, /quitApp\(\)/);
 });
 
-test('Tauri exposes a quit command for the pet menu', () => {
+test('Tauri exposes quit and Music.app commands for the pet menu', () => {
   const commands = readFileSync(new URL('../src-tauri/src/commands.rs', import.meta.url), 'utf8');
   const main = readFileSync(new URL('../src-tauri/src/main.rs', import.meta.url), 'utf8');
   const tauri = readFileSync(new URL('../src/tauri.ts', import.meta.url), 'utf8');
 
   assert.match(commands, /pub fn quit_app\(app:\s*tauri::AppHandle\)/);
   assert.match(commands, /app\.exit\(0\)/);
+  assert.match(commands, /music_playpause/);
+  assert.match(commands, /music_next/);
   assert.match(main, /commands::quit_app/);
+  assert.match(main, /mod music/);
+  assert.match(main, /commands::music_playpause/);
   assert.match(tauri, /quitApp/);
+  assert.match(tauri, /musicPlayPause/);
+  assert.doesNotMatch(main, /mod spotify/);
+});
+
+test('macOS packaging files exist for direct and App Store tracks', () => {
+  const config = JSON.parse(
+    readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'),
+  ) as {
+    identifier?: string;
+    bundle?: {
+      targets?: string[];
+      macOS?: { entitlements?: string; infoPlist?: string; minimumSystemVersion?: string };
+    };
+  };
+  const entitlements = readFileSync(
+    new URL('../src-tauri/entitlements/app.entitlements', import.meta.url),
+    'utf8',
+  );
+  const masEntitlements = readFileSync(
+    new URL('../src-tauri/entitlements/app-store.entitlements', import.meta.url),
+    'utf8',
+  );
+  const infoPlist = readFileSync(new URL('../src-tauri/Info.plist', import.meta.url), 'utf8');
+  const releaseScript = readFileSync(new URL('../../scripts/release-dmg.sh', import.meta.url), 'utf8');
+  const masDesign = readFileSync(new URL('../../docs/mas-helper-architecture.md', import.meta.url), 'utf8');
+
+  assert.equal(config.identifier, 'com.hilbert.dardanus');
+  assert.deepEqual(config.bundle?.targets, ['app', 'dmg']);
+  assert.equal(config.bundle?.macOS?.minimumSystemVersion, '12.0');
+  assert.equal(config.bundle?.macOS?.entitlements, 'entitlements/app.entitlements');
+  assert.match(entitlements, /automation\.apple-events/);
+  assert.match(entitlements, /com\.apple\.Music/);
+  assert.doesNotMatch(entitlements, /com\.spotify\.client/);
+  assert.match(masEntitlements, /app-sandbox/);
+  assert.match(infoPlist, /NSAppleEventsUsageDescription/);
+  assert.match(infoPlist, /Music\.app/);
+  assert.match(infoPlist, /LSUIElement/);
+  assert.match(releaseScript, /notarytool submit/);
+  assert.match(releaseScript, /stapler staple/);
+  assert.match(masDesign, /dardanus-bridge/);
+  assert.match(masDesign, /127\.0\.0\.1:8787/);
 });
 
 test('setup guide renders IM choices and form controls', () => {
