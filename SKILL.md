@@ -9,17 +9,17 @@ description: 飞书 Claude Code 桥接。通过飞书事件订阅 Webhook 把飞
 
 ## 当前能力
 
-- 接收飞书事件订阅 Webhook 的文本消息、图片、音频、文件与富文本链接
-- 支持飞书 challenge 校验与 schema 2.0 事件
-- 支持加密事件体解密
-- 为每个 `chat_id` 维护独立 Claude 会话
-- 将 Claude 文本回复发回飞书
-- 下载图片/文件/音频到 `~/.feishu-claude-code/runtime/...`，供 Claude 读取
-- 可通过 `FEISHU_AUDIO_TRANSCRIPTION_COMMAND` 为音频启用本地转写，并将 transcript 一并交给 Claude
-- 对 media 文件会先尝试直接转写，失败时再回退到 `ffmpeg` 抽音轨后转写
-- 在飞书内处理简单权限批准/拒绝（回复 `y` / `n`）
-- 支持基础命令：`/help`、`/clear`、`/status`、`/permission [mode]`、`/model [name]`、`/skills`
-- 提供 `npm run daemon -- <start|stop|restart|status|logs>` 后台运行入口
+- 多通道 Claude Code 桥接：
+  - **飞书**：事件订阅 Webhook（完整）
+  - **Telegram**：Bot API long polling（可用）
+  - **企业微信**：智能机器人 WebSocket 长连接（可用）
+  - **微信个人号**：planned 档案（运行时未实现）
+- 共享入站管道：每会话 Claude 会话、`/help` 等命令、工具权限 `y` / `n`
+- 飞书：challenge 校验、schema 2.0、加密事件体、附件下载与可选音频转写
+- Telegram：文本/图片/文件/语音下载到 `~/.feishu-claude-code/runtime/...`，可选本地转写
+- 企业微信：文本消息 + 命令/权限；同一 BotID 仅允许一个有效长连接
+- Dardanus 桌宠可选择 IM 通道并写入 `activeChannel`
+- 提供 `npm run daemon -- <start|stop|restart|status|logs>`；Telegram/企业微信启动时自动跳过 Cloudflare tunnel
 - 提供 `npm run setup-asr`，辅助安装 `ffmpeg` / `whisper-cli` 并生成本地转写命令
 
 ## 安装
