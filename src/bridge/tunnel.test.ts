@@ -7,7 +7,7 @@ type ExecFileSync = typeof execFileSync;
 
 test('reports tunnel online when cloudflared is listening on the local ingress port', () => {
   const exec = fakeExec(({ file, args }) => {
-    if (file === 'lsof' && args.join(' ') === '-tiTCP:20241 -sTCP:LISTEN') {
+    if (file === '/usr/sbin/lsof' && args.join(' ') === '-tiTCP:20241 -sTCP:LISTEN') {
       return '12345\n';
     }
     throw new Error('unexpected command');
@@ -20,7 +20,7 @@ test('falls back to process detection when the ingress port probe is unavailable
   const calls: string[] = [];
   const exec = fakeExec(({ file, args }) => {
     calls.push(`${file} ${args.join(' ')}`);
-    if (file === 'pgrep' && args.join(' ') === '-f cloudflared.*tunnel run') {
+    if (file === '/usr/bin/pgrep' && args.join(' ') === '-f cloudflared.*tunnel run') {
       return '23456\n';
     }
     throw new Error('not found');
@@ -28,8 +28,8 @@ test('falls back to process detection when the ingress port probe is unavailable
 
   assert.equal(detectTunnelState(exec), 'online');
   assert.deepEqual(calls, [
-    'lsof -tiTCP:20241 -sTCP:LISTEN',
-    'pgrep -f cloudflared.*tunnel run',
+    '/usr/sbin/lsof -tiTCP:20241 -sTCP:LISTEN',
+    '/usr/bin/pgrep -f cloudflared.*tunnel run',
   ]);
 });
 
@@ -37,7 +37,7 @@ test('detects cloudflared even when the launch command does not include tunnel r
   const calls: string[] = [];
   const exec = fakeExec(({ file, args }) => {
     calls.push(`${file} ${args.join(' ')}`);
-    if (file === 'pgrep' && args.join(' ') === '-f cloudflared') {
+    if (file === '/usr/bin/pgrep' && args.join(' ') === '-f cloudflared') {
       return '34567\n';
     }
     throw new Error('not found');
@@ -45,9 +45,9 @@ test('detects cloudflared even when the launch command does not include tunnel r
 
   assert.equal(detectTunnelState(exec), 'online');
   assert.deepEqual(calls, [
-    'lsof -tiTCP:20241 -sTCP:LISTEN',
-    'pgrep -f cloudflared.*tunnel run',
-    'pgrep -f cloudflared',
+    '/usr/sbin/lsof -tiTCP:20241 -sTCP:LISTEN',
+    '/usr/bin/pgrep -f cloudflared.*tunnel run',
+    '/usr/bin/pgrep -f cloudflared',
   ]);
 });
 

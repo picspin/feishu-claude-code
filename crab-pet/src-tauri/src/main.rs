@@ -1,5 +1,7 @@
+mod accessibility;
 mod commands;
 mod daemon;
+mod setup;
 mod window;
 
 use tauri::Manager;
@@ -10,7 +12,6 @@ fn main() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = crate::window::position_near_dock(window);
             }
-            let _ = crate::daemon::ensure_daemon();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -18,7 +19,11 @@ fn main() {
             commands::start_daemon,
             commands::stop_daemon,
             commands::daemon_status,
-            commands::position_near_dock
+            commands::quit_app,
+            commands::position_near_dock,
+            commands::open_setup_guide,
+            commands::save_setup_config,
+            commands::frontmost_window_bounds
         ])
         .build(tauri::generate_context!())
         .expect("error while building Tauri app")

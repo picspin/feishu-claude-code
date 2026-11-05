@@ -3,15 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Feishu Crab Pet</title>
+    <title>Dardanus</title>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <main id="app" aria-label="Feishu Claude Code crab pet">
-      <button id="crab-button" class="crab-shell" aria-label="Show recent Feishu activity">
+    <main id="app" aria-label="Dardanus Claude Code hermit crab pet">
+      <button id="crab-button" class="crab-shell" aria-label="Show recent activity">
         <span class="crab-sprite" aria-hidden="true"></span>
       </button>
+      <nav id="crab-menu" class="crab-menu" data-visible="false" aria-hidden="true" aria-label="Dardanus actions">
+        <button type="button" data-menu-action="wake">Wake</button>
+        <button type="button" data-menu-action="setup">Setup</button>
+        <button type="button" data-menu-action="reload">Reload</button>
+        <button type="button" data-menu-action="quit">Quit</button>
+      </nav>
       <section id="bubble-panel" class="bubble-panel" aria-live="polite"></section>
+      <section id="setup-panel" class="setup-panel" data-visible="false" aria-hidden="true" aria-labelledby="setup-title">
+        <div id="setup-language" class="setup-language" aria-label="Setup language"></div>
+        <div class="setup-header">
+          <p id="setup-count" class="setup-count"></p>
+          <h1 id="setup-title"></h1>
+          <p id="setup-body"></p>
+        </div>
+        <div id="setup-client-list" class="setup-client-list" role="listbox" aria-label="Choose IM client"></div>
+        <ol id="setup-step-list" class="setup-step-list" aria-label="Setup steps"></ol>
+        <form id="setup-form" class="setup-form"></form>
+        <pre id="setup-log" class="setup-log" aria-live="polite"></pre>
+        <div class="setup-actions">
+          <button type="button" data-setup-action="back">Back</button>
+          <button type="button" data-setup-action="open-guide">Guide</button>
+          <button type="button" data-setup-action="next">Next</button>
+          <button type="button" data-setup-action="save">Connect</button>
+          <button type="button" data-setup-action="done">Done</button>
+        </div>
+      </section>
     </main>
     <script type="module" src="/src/app.ts"></script>
   </body>

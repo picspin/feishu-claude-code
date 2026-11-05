@@ -4,15 +4,15 @@ import type { BridgeOnlineState } from './status.js';
 type ExecFileSync = typeof execFileSync;
 
 export function detectTunnelState(exec: ExecFileSync = execFileSync): BridgeOnlineState {
-  if (commandHasOutput(exec, 'lsof', ['-tiTCP:20241', '-sTCP:LISTEN'])) {
+  if (commandHasOutput(exec, '/usr/sbin/lsof', ['-tiTCP:20241', '-sTCP:LISTEN'])) {
     return 'online';
   }
 
-  if (commandHasOutput(exec, 'pgrep', ['-f', 'cloudflared.*tunnel run'])) {
+  if (commandHasOutput(exec, '/usr/bin/pgrep', ['-f', 'cloudflared.*tunnel run'])) {
     return 'online';
   }
 
-  if (commandHasOutput(exec, 'pgrep', ['-f', 'cloudflared'])) {
+  if (commandHasOutput(exec, '/usr/bin/pgrep', ['-f', 'cloudflared'])) {
     return 'online';
   }
 

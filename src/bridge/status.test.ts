@@ -116,6 +116,18 @@ test('reports bridge offline when Feishu reply readiness is unavailable', () => 
   });
 });
 
+test('surfaces message type from an external channel runtime', () => {
+  const tracker = createBridgeStatusTracker({
+    version: '0.1.0',
+    getBridgeState: () => 'online',
+    getTunnelState: () => 'online',
+    getLastMessageType: () => 'image',
+    now: () => new Date('2026-06-15T00:00:00.000Z'),
+  });
+
+  assert.equal(tracker.getStatus().lastMessageType, 'image');
+});
+
 function parseJsonl(value: string): unknown[] {
   return value.split('\n').map((line) => JSON.parse(line) as unknown);
 }

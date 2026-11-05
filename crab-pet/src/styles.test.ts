@@ -104,9 +104,9 @@ test('state styles map the six reusable transparent crab forms', () => {
   assert.match(css, /\.crab-shell\[data-state="idle-shrink"\][^{]*\{[^}]*--crab-art:\s*url\("\/src\/assets\/crab-shrink\.png"\)/s);
   assert.match(css, /\.crab-shell\[data-state="wave-claw"\]\s+\.crab-sprite\s*\{[^}]*animation:\s*wave-claw-once\s+5s\s+ease-in-out\s+1;/s);
   assert.match(css, /\.crab-shell\[data-state="wink"\]\s+\.crab-sprite\s*\{[^}]*animation:\s*wink-pop\s+900ms\s+ease-in-out\s+2;/s);
-  assert.match(css, /width:\s*152px;/);
-  assert.match(css, /height:\s*116px;/);
-  assert.match(css, /padding:\s*14px;/);
+  assert.match(css, /width:\s*136px;/);
+  assert.match(css, /height:\s*100px;/);
+  assert.match(css, /padding:\s*12px;/);
 });
 
 test('pet sprite is rendered as a bare transparent layer without panel styling', () => {
