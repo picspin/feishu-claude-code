@@ -20,6 +20,24 @@ test('sleeps when bridge or tunnel is offline', () => {
   );
 });
 
+test('winks from status lastMessageType when channel events are empty', () => {
+  assert.equal(
+    deriveCrabState({
+      status: {
+        bridge: 'online',
+        tunnel: 'online',
+        claude: 'idle',
+        lastMessageType: 'image',
+        lastEventAt: '2026-06-15T00:00:00.000Z',
+        lastError: null,
+      },
+      events: [],
+      now: new Date('2026-06-15T00:00:01.000Z'),
+    }),
+    'wink',
+  );
+});
+
 test('uses interaction effects before business activity', () => {
   assert.equal(
     deriveCrabState({

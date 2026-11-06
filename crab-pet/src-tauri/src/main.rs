@@ -1,6 +1,7 @@
 mod accessibility;
 mod commands;
 mod daemon;
+mod music;
 mod setup;
 mod window;
 
@@ -23,7 +24,11 @@ fn main() {
             commands::position_near_dock,
             commands::open_setup_guide,
             commands::save_setup_config,
-            commands::frontmost_window_bounds
+            commands::frontmost_window_bounds,
+            commands::music_status,
+            commands::music_playpause,
+            commands::music_play,
+            commands::music_next
         ])
         .build(tauri::generate_context!())
         .expect("error while building Tauri app")

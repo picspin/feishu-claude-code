@@ -1,9 +1,9 @@
 {
   "name": "feishu-claude-code",
   "version": "0.1.0",
-  "description": "Bridge Feishu IM with local Claude Code sessions and attachment-aware prompts",
+  "description": "Multi-channel IM bridge (Feishu / Telegram / WeCom) for local Claude Code, with Dardanus desktop pet",
   "license": "MIT",
-  "keywords": ["feishu", "lark", "claude-code", "agent-sdk", "bridge", "webhook"],
+  "keywords": ["feishu", "lark", "telegram", "wecom", "wechat", "claude-code", "agent-sdk", "bridge", "webhook", "dardanus"],
   "type": "module",
   "scripts": {
     "build": "tsc",

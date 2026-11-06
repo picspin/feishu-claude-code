@@ -85,7 +85,7 @@ fn save_future_channel_config(
         root["channels"] = Value::Object(Map::new());
     }
     root["channels"][channel] = Value::Object(channel_config);
-    set_string(root, "activeChannel", channel);
+    // Planned channels keep the previous activeChannel so an existing ready bridge stays usable.
     Ok(())
 }
 

@@ -61,7 +61,7 @@ The bridge is intentionally lightweight. It does not embed a heavy OCR or docume
 - Run in foreground or daemon mode / 支持前台运行或 daemon 后台运行
 - Launch Dardanus, the macOS hermit crab desktop pet that starts/supervises the bridge and tunnel, then reflects bridge, tunnel, Claude, and Feishu activity states / 启动 Dardanus 这个 macOS 寄居蟹桌宠，由桌宠启动和守护 bridge 与 tunnel，并映射 bridge、tunnel、Claude 与飞书消息状态
 - Drag Dardanus freely around the screen, with magnetic snapping near screen edges and the Dock band / 支持在屏幕任意位置拖动 Dardanus，并在屏幕边缘与 Dock 区域附近磁吸贴靠
-- Planned expansion to WeChat and WeCom through OpenClaw-style QR login adapters after the Feishu path is stable / 飞书路径稳定后，计划通过 OpenClaw 风格的扫码登录适配器继续接入 WeChat 与 WeCom
+- Multi-channel Claude Code bridge: Feishu webhook (full), Telegram Bot API polling (ready), WeCom intelligent-bot long connection (ready), WeChat personal QR-login (planned profile only) / 多通道 Claude Code 桥接：飞书 Webhook（完整）、Telegram Bot API polling（可用）、企业微信智能机器人长连接（可用）、微信个人号扫码（仅 planned 档案）
 
 ## Architecture / 架构说明
 
@@ -104,16 +104,25 @@ State mapping / 状态映射：
 
 Interaction notes / 交互说明：
 
-- Right click Dardanus to open its menu: `Wake` relaunches the local bridge daemon, `Setup` opens the onboarding guide, `Reload` snaps near the Dock and refreshes status, and `Quit` exits the pet / 右键 Dardanus 会打开菜单：`Wake` 重新拉起本地 bridge daemon，`Setup` 打开入门导览，`Reload` 贴近 Dock 并刷新状态，`Quit` 退出桌宠
-- Press and drag on the crab to move it anywhere on screen; it stays free while dragging and only snaps lightly after release near a screen edge or Dock band / 按住寄居蟹可在屏幕任意位置拖动；拖动过程中保持自由，只有松手后靠近屏幕边缘或 Dock 区域才轻量磁吸
-- First-run onboarding lets users choose an IM client, open the corresponding registration guide, paste copied keys, save local Claude Code bridge config, and wake the bridge / 首次运行导览允许用户选择 IM 客户端、打开对应注册页面、粘贴复制好的 key、写入本地 Claude Code bridge 配置并唤醒桥接
-- Future IM adapters can reuse the same pet state model after Feishu, including WeChat and WeCom QR-login channel bundles for Claude Code / 后续 WeChat 与 WeCom 扫码入口会作为 Claude Code 的 IM channel bundle 复用同一套桌宠状态模型
+- Right click Dardanus to open its menu: `Wake` relaunches the local bridge daemon, `Setup` opens the onboarding guide, `Reload` snaps near the Dock and refreshes status, `Sound` toggles action SFX, **Apple Music** play/pause/next, optional `Wake music`, and `Quit` exits the pet / 右键菜单：`Wake` 拉起 bridge，`Setup` 导览，`Reload` 刷新，`Sound` 开关动作音效，**Apple Music** 播放/暂停/下一首，可选 `Wake music`，`Quit` 退出
+- Action SFX: sleep / wave-claw / crawl / bubbling / wink / shrink use procedural Web Audio cues (no extra asset downloads) / 动作音效：睡眠、挥钳、爬行、吐泡、眨眼、缩壳使用 Web Audio 程序化声效
+- Optional **Music.app** control via native Apple Events (preferred over third-party players) / 通过系统 Music.app 的 Apple Events 控制播放（优先于第三方播放器）
+- Press and drag on the crab to move it anywhere on screen; it stays free while dragging and only snaps lightly after release near a screen edge or Dock band / 按住寄居蟹可在屏幕任意位置拖动
+- First-run onboarding lets users choose an IM client, open the corresponding registration guide, paste copied keys, save local Claude Code bridge config, and wake the bridge / 首次运行导览可选择 IM 并完成配置
+- Packaging: one-click notarized DMG via `./scripts/release-dmg.sh`; MAS helper split design in [`docs/mas-helper-architecture.md`](./docs/mas-helper-architecture.md) / 打包：一键公证 DMG；MAS helper 拆分设计见文档
 
-Future IM adapters / 后续 IM 适配：
+IM channel status / 当前 IM 通道状态：
 
-- WeChat reference: [Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin), used as QR-login channel design reference rather than a required runtime dependency / WeChat 参考：[Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin)，作为扫码登录通道设计参考，而不是必需运行时依赖
-- WeCom reference: [WecomTeam/wecom-openclaw-plugin](https://github.com/WecomTeam/wecom-openclaw-plugin), used as enterprise IM workflow reference for a future Dardanus Claude Code channel / WeCom 参考：[WecomTeam/wecom-openclaw-plugin](https://github.com/WecomTeam/wecom-openclaw-plugin)，作为未来 Dardanus Claude Code 企业 IM 通道的工作流参考
-- Current Setup writes working Feishu/Lark bridge credentials today and stores WeChat/WeCom as planned channel profiles until their Claude Code bundles land / 当前 Setup 会写入可用的 Feishu/Lark bridge 凭据；WeChat/WeCom 会先保存为 planned channel profile，等待后续 Claude Code bundle 落地
+| Channel | Status | Transport | Setup |
+| --- | --- | --- | --- |
+| Feishu / 飞书 | Ready | HTTPS webhook + Cloudflare tunnel | App ID / Secret / Verification Token |
+| Telegram | Ready | Bot API `getUpdates` long polling | Bot token from BotFather |
+| WeCom / 企业微信 | Ready | Intelligent bot WebSocket long connection | BotID + long-connection Secret |
+| WeChat / 微信个人号 | Planned | QR-login channel bundle (not runtime yet) | Save profile only in Setup |
+
+- WeChat reference: [Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin) / 微信个人号参考
+- WeCom reference: [WecomTeam/wecom-openclaw-plugin](https://github.com/WecomTeam/wecom-openclaw-plugin) / 企业微信参考
+- All ready channels share one inbound pipeline: slash commands, Claude sessions, `y`/`n` tool permission, attachment-aware prompts (Telegram also downloads photos/files/voice) / 已就绪通道共用同一套入站管道：命令、会话、工具权限审批、附件感知 prompt（Telegram 另支持图片/文件/语音下载）
 
 Build the macOS app / 构建 macOS App：
 
@@ -123,17 +132,28 @@ npm install
 npm run tauri -- build
 ```
 
-The local `.app` bundle is generated at:
+The local `.app` / `.dmg` bundles are generated at:
 
-本地 `.app` 会生成在：
+本地产物：
 
 ```text
 crab-pet/src-tauri/target/release/bundle/macos/Dardanus.app
+crab-pet/src-tauri/target/release/bundle/dmg/Dardanus_*.dmg
 ```
 
-Packaged macOS app binaries are intentionally not committed to this repository. Publish them separately through GitHub Releases.
+One-click signed + notarized DMG:
 
-打包后的 macOS App 二进制不会提交到仓库；请通过 GitHub Releases 单独发布。
+```bash
+export CODESIGN_IDENTITY="Developer ID Application: YOUR NAME (TEAMID)"
+export APPLE_ID="you@example.com"
+export APPLE_TEAM_ID="TEAMID"
+export APPLE_APP_PASSWORD="app-specific-password"
+./scripts/release-dmg.sh
+```
+
+Packaged binaries are intentionally not committed. MAS helper architecture: [`docs/mas-helper-architecture.md`](./docs/mas-helper-architecture.md). Distribution notes: [`docs/mac-app-store.md`](./docs/mac-app-store.md).
+
+打包产物不要提交进仓库。MAS 拆分与发布说明见上述文档。
 
 ## Requirements / 环境要求
 
@@ -178,7 +198,11 @@ npm run build
 
 ## Configuration / 配置
 
-Required environment variables / 至少需要的环境变量：
+Pick one active channel. Dardanus Setup writes `activeChannel` plus per-channel credentials into `~/.feishu-claude-code/config.json`. You can also seed config with env vars via `npm run setup`.
+
+选择一个 active channel。Dardanus Setup 会把 `activeChannel` 与通道凭据写入 `~/.feishu-claude-code/config.json`；也可以用环境变量配合 `npm run setup` 初始化。
+
+### Feishu / 飞书
 
 ```bash
 export FEISHU_APP_ID=your_app_id
@@ -187,6 +211,37 @@ export FEISHU_VERIFICATION_TOKEN=your_verification_token
 export FEISHU_PUBLIC_BASE_URL=https://feishu-cc.example.com
 export FEISHU_AUDIO_TRANSCRIPTION_COMMAND="whisper-cli -m /path/to/model.bin -f {file} -otxt -of /tmp/feishu-audio && cat /tmp/feishu-audio.txt"
 ```
+
+### Telegram
+
+```bash
+export TELEGRAM_BOT_TOKEN=123456:ABC-DEF
+# optional
+export TELEGRAM_API_BASE_URL=https://api.telegram.org
+export TELEGRAM_POLLING_TIMEOUT_SECONDS=30
+npm run setup
+npm run daemon -- start
+```
+
+No public webhook or Cloudflare tunnel is required for Telegram polling.
+
+Telegram polling 不需要公网 Webhook 或 Cloudflare tunnel。
+
+### WeCom / 企业微信
+
+```bash
+export WECOM_BOT_ID=your_bot_id
+export WECOM_BOT_SECRET=your_long_connection_secret
+# optional
+export WECOM_WEBSOCKET_URL=wss://openws.work.weixin.qq.com
+export WECOM_HEARTBEAT_SECONDS=30
+npm run setup
+npm run daemon -- start
+```
+
+WeCom uses the intelligent bot long-connection API (`wss://openws.work.weixin.qq.com`). One BotID may keep only one active connection.
+
+企业微信使用智能机器人长连接 API。同一 BotID 同时只能保持一个有效连接。
 
 For media files, the bridge now tries the command directly first, then falls back to `ffmpeg` audio extraction when needed.
 
@@ -385,15 +440,17 @@ The bridge intentionally stays lightweight:
 
 ## Known Limitations / 当前限制
 
-- Replies are still text-only on the Feishu outbound side.
+- Outbound replies are still text-only on all channels.
 - Attachment quality depends on Claude's available local file/image/PDF capabilities.
-- Audio/media specialized handling is not fully productized yet.
+- WeCom currently focuses on text (+ command/permission parity); rich media download for WeCom long-connection payloads is still limited by the bot API surface.
+- WeChat personal QR-login runtime is not implemented yet (Setup only saves a planned profile).
 - Feishu cloud docs are currently passed mainly as links rather than exported local files.
 - No one-click installer or packaged autostart flow yet.
 
-- 飞书出站回复目前仍以纯文本为主。
+- 所有通道出站回复目前仍以纯文本为主。
 - 附件理解效果依赖 Claude 当前可用的本地文件 / 图片 / PDF 能力。
-- 语音 / media 的专用处理尚未完全产品化。
+- 企业微信当前以文本 + 命令/权限对齐为主；长连接媒体下载仍受机器人 API 能力限制。
+- 微信个人号扫码运行时尚未实现（Setup 仅保存 planned 档案）。
 - 飞书云文档当前主要以链接透传，尚未稳定导出为本地文件。
 - 还没有一键安装器或完整自启动封装。
 
@@ -407,7 +464,10 @@ npm run build
 ```
 
 Key source directories / 主要源码目录：
-- `src/feishu` - webhook parsing, downloads, prompt building / webhook 解析、下载、prompt 组装
+- `src/core` - shared inbound turn pipeline, prompt builder, channel events / 共享入站管道、prompt、跨通道事件
+- `src/feishu` - webhook parsing, downloads / webhook 解析与附件下载
+- `src/telegram` - Bot API long polling worker / Telegram polling worker
+- `src/wecom` - intelligent bot WebSocket long connection worker / 企业微信长连接 worker
 - `src/bridge` - bridge/tunnel readiness and desktop pet status contract / bridge、tunnel 可用性与桌宠状态契约
 - `src/claude` - Claude Agent SDK integration / Claude Agent SDK 集成
 - `src/commands` - slash-style command handling / 命令处理

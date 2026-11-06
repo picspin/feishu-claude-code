@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { loadConfig } from '../config.js';
 import { logger } from '../logger.js';
 import { createSessionStore } from '../session.js';
-import { routeCommand } from '../commands/router.js';
-import { claudeQuery } from '../claude/provider.js';
+import { createPermissionBroker } from '../permission.js';
+import type { FeishuMessageType } from '../feishu/webhook.js';
+import { handleInboundTurn } from '../core/inbound.js';
 import {
   getWeComChannel,
   weComConfigError,
@@ -100,11 +101,25 @@ function responseSessionId(packet: WeComPacket): string {
 }
 
 function responseText(packet: WeComPacket): string {
-  const text = packet.body?.text?.content?.trim();
-  if (text) {
-    return text;
+  return packet.body?.text?.content?.trim() || '';
+}
+
+function mapMessageType(msgtype: string | undefined): FeishuMessageType {
+  switch ((msgtype || '').toLowerCase()) {
+    case 'image':
+      return 'image';
+    case 'voice':
+    case 'audio':
+      return 'audio';
+    case 'video':
+    case 'mixed':
+      return 'media';
+    case 'file':
+      return 'file';
+    case 'text':
+    default:
+      return 'text';
   }
-  return `[WeCom ${packet.body?.msgtype || packet.cmd || 'message'}]`;
 }
 
 function respond(socket: WebSocketLike, reqId: string, content: string): void {
@@ -122,7 +137,13 @@ function respond(socket: WebSocketLike, reqId: string, content: string): void {
   });
 }
 
-async function handleMessage(socket: WebSocketLike, packet: WeComPacket, context: WorkerContext): Promise<void> {
+async function handleMessage(
+  socket: WebSocketLike,
+  packet: WeComPacket,
+  context: WorkerContext,
+  sessionStore: ReturnType<typeof createSessionStore>,
+  permissionBroker: ReturnType<typeof createPermissionBroker>,
+): Promise<void> {
   if (packet.errcode !== undefined && packet.errcode !== 0) {
     updateStatus(context, 'error', { lastError: packet.errmsg || `WeCom errcode ${packet.errcode}` });
     return;
@@ -150,65 +171,42 @@ async function handleMessage(socket: WebSocketLike, packet: WeComPacket, context
   }
 
   const config = loadConfig();
-  const sessionStore = createSessionStore();
   const sessionId = `wecom-${responseSessionId(packet)}`;
-  const session = sessionStore.load(sessionId);
-  const messageText = responseText(packet);
-  const command = packet.body?.msgtype === 'text' ? routeCommand(messageText, session) : { handled: false as const };
+  const messageType = mapMessageType(packet.body?.msgtype);
+  const messageText = responseText(packet) || (messageType === 'text' ? '' : `[WeCom ${packet.body?.msgtype || 'message'}]`);
 
-  updateStatus(context, 'processing', { lastMessageType: packet.body?.msgtype || 'message' });
-  if (command.handled) {
-    if (command.clearSession) {
-      session.sdkSessionId = undefined;
-      session.chatHistory = [];
-      session.state = 'idle';
-    }
-    if (command.nextPermissionMode) {
-      session.permissionMode = command.nextPermissionMode;
-    }
-    if (command.nextModel) {
-      session.model = command.nextModel;
-    }
-    sessionStore.save(sessionId, session);
-    if (command.reply) {
-      respond(socket, reqId, command.reply);
-    }
-    if (!command.nextPrompt) {
-      updateStatus(context, 'idle', { lastMessageType: packet.body?.msgtype || 'message' });
-      return;
-    }
-  }
-
-  session.state = 'processing';
-  sessionStore.addChatMessage(session, 'user', command.handled && command.nextPrompt ? command.nextPrompt : messageText);
-  sessionStore.save(sessionId, session);
+  updateStatus(context, 'processing', { lastMessageType: messageType });
 
   try {
-    const result = await claudeQuery({
-      prompt: command.handled && command.nextPrompt ? command.nextPrompt : messageText,
-      cwd: session.workingDirectory || config.workingDirectory,
-      resume: session.sdkSessionId,
-      model: session.model || config.model,
-      systemPrompt: config.systemPrompt,
-      permissionMode: session.permissionMode || config.permissionMode,
+    await handleInboundTurn({
+      sessionKey: sessionId,
+      messageType,
+      messageText,
+      config,
+      sessionStore,
+      permissionBroker,
+      reply: async (text) => {
+        respond(socket, reqId, text);
+      },
     });
-    session.sdkSessionId = result.sessionId || session.sdkSessionId;
-    session.state = 'idle';
-    sessionStore.addChatMessage(session, 'assistant', result.text || '(空回复)');
-    sessionStore.save(sessionId, session);
-    respond(socket, reqId, result.text || '(空回复)');
-    updateStatus(context, 'idle', { lastMessageType: packet.body?.msgtype || 'message' });
+    updateStatus(context, 'idle', { lastMessageType: messageType });
   } catch (error) {
-    session.state = 'idle';
-    sessionStore.save(sessionId, session);
     const message = error instanceof Error ? error.message : String(error);
     respond(socket, reqId, `处理失败: ${message}`);
-    updateStatus(context, 'error', { lastError: message, lastMessageType: packet.body?.msgtype || 'message' });
+    updateStatus(context, 'error', { lastError: message, lastMessageType: messageType });
     logger.error('WeCom long connection message handling failed', { error: message });
   }
 }
 
-async function connectOnce(url: string, botId: string, secret: string, heartbeatSeconds: number, context: WorkerContext): Promise<void> {
+async function connectOnce(
+  url: string,
+  botId: string,
+  secret: string,
+  heartbeatSeconds: number,
+  context: WorkerContext,
+  sessionStore: ReturnType<typeof createSessionStore>,
+  permissionBroker: ReturnType<typeof createPermissionBroker>,
+): Promise<void> {
   const Socket = websocketCtor();
   const socket = new Socket(url);
   let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -227,7 +225,7 @@ async function connectOnce(url: string, botId: string, secret: string, heartbeat
       void (async () => {
         try {
           const packet = JSON.parse(String(event.data)) as WeComPacket;
-          await handleMessage(socket, packet, context);
+          await handleMessage(socket, packet, context, sessionStore, permissionBroker);
         } catch (error) {
           updateStatus(context, 'error', { lastError: error instanceof Error ? error.message : String(error) });
         }
@@ -257,11 +255,13 @@ export async function runWeComLongConnection(): Promise<void> {
   const websocketUrl = channel?.websocketUrl || DEFAULT_WEBSOCKET_URL;
   const heartbeatSeconds = channel?.heartbeatSeconds || DEFAULT_HEARTBEAT_SECONDS;
   const context: WorkerContext = { startedAt: new Date().toISOString(), botId };
+  const sessionStore = createSessionStore();
+  const permissionBroker = createPermissionBroker();
   updateStatus(context, 'starting');
 
   for (;;) {
     try {
-      await connectOnce(websocketUrl, botId, secret, heartbeatSeconds, context);
+      await connectOnce(websocketUrl, botId, secret, heartbeatSeconds, context, sessionStore, permissionBroker);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       updateStatus(context, 'error', { lastError: message });

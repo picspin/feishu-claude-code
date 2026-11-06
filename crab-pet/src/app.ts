@@ -9,7 +9,20 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { createPetDrag } from './drag.js';
 import { createTimedPetDisplay } from './display-state.js';
 import { createCrawlLocomotion } from './locomotion.js';
-import { ensureDaemon, frontmostWindowBounds, openSetupGuide, positionNearDock, quitApp, saveSetupConfig, startDaemon } from './tauri.js';
+import { loadPetPreferences, updatePetPreferences, type PetPreferences } from './preferences.js';
+import { createPetSoundBoard } from './sounds.js';
+import {
+  ensureDaemon,
+  frontmostWindowBounds,
+  musicNext,
+  musicPlay,
+  musicPlayPause,
+  openSetupGuide,
+  positionNearDock,
+  quitApp,
+  saveSetupConfig,
+  startDaemon,
+} from './tauri.js';
 
 const PET_WINDOW_SIZE = { width: 160, height: 124 };
 const SETUP_WINDOW_SIZE = { width: 460, height: 560 };
@@ -350,6 +363,8 @@ const drag = createPetDrag({
 });
 const timedDisplay = createTimedPetDisplay();
 const crawlLocomotion = createCrawlLocomotion();
+let preferences: PetPreferences = loadPetPreferences();
+const soundBoard = createPetSoundBoard({ enabled: preferences.soundEnabled });
 let interaction: InteractionState | undefined;
 let interactionTimer: number | undefined;
 let bubblingIntentTimer: number | undefined;
@@ -360,6 +375,7 @@ let setupLanguage: SetupLanguage = 'zh';
 let setupView: SetupView = 'choose';
 let setupStepIndex = 0;
 let loadingTimer: number | undefined;
+let paintedState: ReturnType<typeof deriveCrabState> | undefined;
 
 function shouldAutoWake(snapshot: Awaited<ReturnType<typeof fetchBridgeSnapshot>>): boolean {
   return snapshot.status.bridge !== 'online' || snapshot.status.tunnel !== 'online';
@@ -381,12 +397,27 @@ function maybeAutoWake(snapshot: Awaited<ReturnType<typeof fetchBridgeSnapshot>>
     });
 }
 
+function syncMenuPreferenceLabels(): void {
+  const soundButton = crabMenu.querySelector<HTMLButtonElement>('[data-menu-action="toggle-sound"]');
+  const wakeMusicButton = crabMenu.querySelector<HTMLButtonElement>('[data-menu-action="toggle-music-wake"]');
+  if (soundButton) {
+    soundButton.textContent = preferences.soundEnabled ? 'Sound: On' : 'Sound: Off';
+  }
+  if (wakeMusicButton) {
+    wakeMusicButton.textContent = preferences.musicPlayOnWake ? 'Wake music: On' : 'Wake music: Off';
+  }
+}
+
 async function refresh(): Promise<void> {
   const snapshot = await fetchBridgeSnapshot().catch(() => offlineSnapshot());
   maybeAutoWake(snapshot);
   const businessState = deriveCrabState({ ...snapshot, interaction });
   const state = timedDisplay.update(businessState);
   crawlLocomotion.setActive(state === 'crawl' || state === 'dodge');
+  if (state !== paintedState) {
+    soundBoard.onState(state);
+    paintedState = state;
+  }
   renderCrabState(crabButton, bubblePanel, state, describeCrabActivity({ state, ...snapshot }));
 }
 
@@ -697,9 +728,10 @@ function showCrabMenu(event: MouseEvent): void {
   event.preventDefault();
   event.stopPropagation();
   cancelBubblingIntent();
+  syncMenuPreferenceLabels();
   const appBounds = document.querySelector<HTMLElement>('#app')?.getBoundingClientRect();
-  const menuWidth = crabMenu.offsetWidth || 96;
-  const menuHeight = crabMenu.offsetHeight || 96;
+  const menuWidth = crabMenu.offsetWidth || 148;
+  const menuHeight = crabMenu.offsetHeight || 220;
   const maxLeft = Math.max(0, (appBounds?.width ?? window.innerWidth) - menuWidth - 4);
   const maxTop = Math.max(0, (appBounds?.height ?? window.innerHeight) - menuHeight - 4);
   crabMenu.style.left = `${Math.min(Math.max(4, event.clientX), maxLeft)}px`;
@@ -730,12 +762,25 @@ async function reloadPetStatus(): Promise<void> {
   await refresh();
 }
 
+async function maybePlayMusicOnWake(): Promise<void> {
+  if (!preferences.musicEnabled || !preferences.musicPlayOnWake) {
+    return;
+  }
+  try {
+    const status = await musicPlay();
+    showTransientBubble(status.message);
+  } catch (error) {
+    showTransientBubble(error instanceof Error ? error.message : 'Music play failed');
+  }
+}
+
 async function wakeBridgeFromSleep(): Promise<void> {
   cancelBubblingIntent();
   showTransientBubble('Waking bridge and tunnel...');
   try {
     await startDaemon();
     await reloadPetStatus();
+    await maybePlayMusicOnWake();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Wake failed';
     showTransientBubble(message);
@@ -756,7 +801,60 @@ async function runMenuAction(action: string | undefined): Promise<void> {
     await reloadPetStatus();
     return;
   }
+  if (action === 'toggle-sound') {
+    preferences = updatePetPreferences({ soundEnabled: !preferences.soundEnabled });
+    soundBoard.setEnabled(preferences.soundEnabled);
+    if (preferences.soundEnabled) {
+      soundBoard.unlock();
+      soundBoard.play('wave-claw');
+    } else {
+      soundBoard.stop();
+    }
+    syncMenuPreferenceLabels();
+    showTransientBubble(preferences.soundEnabled ? 'Sound effects on' : 'Sound effects muted');
+    return;
+  }
+  if (action === 'toggle-music-wake') {
+    preferences = updatePetPreferences({
+      musicPlayOnWake: !preferences.musicPlayOnWake,
+      musicEnabled: true,
+    });
+    syncMenuPreferenceLabels();
+    showTransientBubble(
+      preferences.musicPlayOnWake
+        ? 'Apple Music will play when you Wake Dardanus'
+        : 'Wake no longer starts Music',
+    );
+    return;
+  }
+  if (action === 'music-playpause') {
+    if (!preferences.musicEnabled) {
+      showTransientBubble('Music control is disabled');
+      return;
+    }
+    try {
+      const status = await musicPlayPause();
+      showTransientBubble(status.message);
+    } catch (error) {
+      showTransientBubble(error instanceof Error ? error.message : 'Music failed');
+    }
+    return;
+  }
+  if (action === 'music-next') {
+    if (!preferences.musicEnabled) {
+      showTransientBubble('Music control is disabled');
+      return;
+    }
+    try {
+      const status = await musicNext();
+      showTransientBubble(status.message);
+    } catch (error) {
+      showTransientBubble(error instanceof Error ? error.message : 'Music next failed');
+    }
+    return;
+  }
   if (action === 'quit') {
+    soundBoard.stop();
     await quitApp().catch(() => undefined);
   }
 }
@@ -831,6 +929,7 @@ crabButton.addEventListener('mouseenter', () => {
 });
 
 crabButton.addEventListener('pointerdown', (event) => {
+  soundBoard.unlock();
   startBubblingIntent();
   void drag.pointerDown(event).catch(() => undefined);
 });
@@ -895,8 +994,10 @@ root.addEventListener('pointercancel', () => {
 
 window.addEventListener('beforeunload', () => {
   crawlLocomotion.stop();
+  soundBoard.stop();
 });
 
+syncMenuPreferenceLabels();
 void positionNearDock().catch(() => undefined);
 void ensureDaemon()
   .catch(() => undefined)
